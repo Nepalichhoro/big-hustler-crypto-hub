@@ -8,6 +8,7 @@ class Channel<T> {
       console.log("[send] Channel is closed, dropping value:", value);
       return;
     }
+    // resolvers == waiting receivers
     const resolver = this.resolvers.shift();
     if (resolver) {
       console.log("[send] Handing value directly to waiting recv:", value);
