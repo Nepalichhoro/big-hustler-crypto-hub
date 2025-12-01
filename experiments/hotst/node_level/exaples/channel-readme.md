@@ -40,3 +40,10 @@ console.log(await wait); // null (channel ended)
 - Mempool → Consensus: transactions flow via a `Channel<Tx>`.
 - Consensus → Commit loop: committed blocks flow via `Channel<Block>`.
 - Consensus ↔ Mempool control path: placeholder channel in this mock.
+
+## Demo scenarios (`channel-demo.ts`)
+- **Scenario 1 – send first**: producer queues values before any consumer; later `recv()` drains existing items and then waits for a new send.
+- **Scenario 2 – recv first**: consumer awaits with no data; first `send` wakes it immediately.
+- **Scenario 3 – multiple receivers**: two consumers wait; first `send` wakes R1, second wakes R2 (FIFO behavior).
+- **Scenario 4 – close with waiters**: pending receivers are awakened with `null` when `close()` is called.
+- **Scenario 5 – close then recv/send**: `recv()` after close returns `null`; `send` after close is ignored/logged.
