@@ -1,7 +1,9 @@
-import { Committee } from "./committee";
-import { Store } from "./store";
-import { Digest, PublicKey, Block, ConsensusMessage } from "./types";
+import { Committee, address } from "./config";
+import { Block, ConsensusMessage } from "./messages";
+import { Digest, PublicKey } from "./types";
 import { Network } from "./network";
+import { Store } from "./store";
+import { Channel } from "./channel";
 
 export class Helper {
   constructor(
@@ -10,22 +12,20 @@ export class Helper {
     private network: Network
   ) {}
 
-  // In Rust, this listens on a channel of (digest, origin).
-  // Here we expose a simple method you could call when a SyncRequest arrives.
-  async handleSyncRequest(digest: Digest, origin: PublicKey): Promise<void> {
-    const address = this.committee.authorities.get(origin)?.address;
-    if (!address) {
-      console.warn(`[Helper] Unknown authority ${origin}`);
-      return;
+  async run(rxRequests: Channel<{ digest: Digest; origin: PublicKey }>): Promise<void> {
+    while (true) {
+      const { digest, origin } = await rxRequests.recv();
+      const addr = address(this.committee, origin);
+      if (!addr) {
+        console.warn(`[Helper] Unknown authority ${origin}`);
+        continue;
+      }
+      const bytes = this.store.read(digest);
+      if (!bytes) continue;
+      // bytes contain serialized Block; here we just assume it's JSON string.
+      const block: Block = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      const msg: ConsensusMessage = { type: "Propose", block };
+      this.network.send(origin, msg);
     }
-
-    const bytes = this.store.read<Block>(digest);
-    if (!bytes) {
-      console.log(`[Helper] Missing block ${digest}, cannot help ${origin}`);
-      return;
-    }
-
-    const msg: ConsensusMessage = { type: "Propose", block: bytes };
-    this.network.send(origin, msg);
   }
 }

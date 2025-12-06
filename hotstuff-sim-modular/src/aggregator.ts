@@ -1,57 +1,86 @@
-import { QC, Vote, Round, Digest } from "./types";
-import { Committee, quorumThreshold } from "./committee";
+import { Committee, quorumThreshold, stake } from "./config";
+import { Digest, PublicKey, Round, Stake } from "./types";
+import { QC, TC, Timeout, Vote } from "./messages";
 
 class QCMaker {
-  weight = 0;
-  used = new Set<string>();
-  votes: [string, string][] = [];
+  weight: Stake = 0;
+  votes: [PublicKey, string][] = [];
+  used = new Set<PublicKey>();
 
-  append(vote: Vote, committee: Committee, threshold: number): QC | null {
-    if (this.used.has(vote.author)) {
-      return null;
+  append(vote: Vote, committee: Committee, threshold: Stake): QC | null {
+    const author = vote.author;
+    if (this.used.has(author)) {
+      throw new Error(`Authority reuse: ${author}`);
     }
-    this.used.add(vote.author);
-    this.votes.push([vote.author, vote.signature]);
-    const stake = committee.authorities.get(vote.author)?.stake ?? 0;
-    this.weight += stake;
+    this.used.add(author);
+    this.votes.push([author, vote.signature.value]);
+    this.weight += stake(committee, author);
     if (this.weight >= threshold) {
-      const qc: QC = {
-        hash: vote.hash,
-        round: vote.round,
-        votes: [...this.votes],
-      };
-      this.weight = 0; // emit only once
-      return qc;
+      this.weight = 0;
+      return new QC(vote.hash, vote.round, this.votes.slice());
+    }
+    return null;
+  }
+}
+
+class TCMaker {
+  weight: Stake = 0;
+  votes: [PublicKey, string, Round][] = [];
+  used = new Set<PublicKey>();
+
+  append(timeout: Timeout, committee: Committee, threshold: Stake): TC | null {
+    const author = timeout.author;
+    if (this.used.has(author)) {
+      throw new Error(`Authority reuse: ${author}`);
+    }
+    this.used.add(author);
+    this.votes.push([author, timeout.signature.value, timeout.highQc.round]);
+    this.weight += stake(committee, author);
+    if (this.weight >= threshold) {
+      this.weight = 0;
+      return new TC(timeout.round, this.votes.slice());
     }
     return null;
   }
 }
 
 export class Aggregator {
-  // round -> digest -> QCMaker
-  private votes = new Map<Round, Map<Digest, QCMaker>>();
+  private votesAggregators = new Map<Round, Map<Digest, QCMaker>>();
+  private timeoutsAggregators = new Map<Round, TCMaker>();
 
   constructor(private committee: Committee) {}
 
-  addVote(v: Vote): QC | null {
-    let perRound = this.votes.get(v.round);
-    if (!perRound) {
-      perRound = new Map<Digest, QCMaker>();
-      this.votes.set(v.round, perRound);
-    }
-    let maker = perRound.get(v.hash);
+  addVote(vote: Vote): QC | null {
+    const roundMap =
+      this.votesAggregators.get(vote.round) ||
+      (this.votesAggregators.set(vote.round, new Map()).get(vote.round) as Map<
+        Digest,
+        QCMaker
+      >);
+    const digest = vote.hash;
+    let maker = roundMap.get(digest);
     if (!maker) {
       maker = new QCMaker();
-      perRound.set(v.hash, maker);
+      roundMap.set(digest, maker);
     }
-    return maker.append(v, this.committee, quorumThreshold(this.committee));
+    return maker.append(vote, this.committee, quorumThreshold(this.committee));
   }
 
-  cleanup(currentRound: Round): void {
-    for (const r of Array.from(this.votes.keys())) {
-      if (r < currentRound) {
-        this.votes.delete(r);
-      }
+  addTimeout(timeout: Timeout): TC | null {
+    let maker = this.timeoutsAggregators.get(timeout.round);
+    if (!maker) {
+      maker = new TCMaker();
+      this.timeoutsAggregators.set(timeout.round, maker);
+    }
+    return maker.append(timeout, this.committee, quorumThreshold(this.committee));
+  }
+
+  cleanup(round: Round): void {
+    for (const r of Array.from(this.votesAggregators.keys())) {
+      if (r < round) this.votesAggregators.delete(r);
+    }
+    for (const r of Array.from(this.timeoutsAggregators.keys())) {
+      if (r < round) this.timeoutsAggregators.delete(r);
     }
   }
 }

@@ -4,7 +4,19 @@ export type EpochNumber = number;
 
 export interface Authority {
   stake: Stake;
-  address: string; // simplified: string instead of SocketAddr
+  address: string; // simplified socket address
+}
+
+export interface Parameters {
+  timeoutDelay: number;
+  syncRetryDelay: number;
+}
+
+export function defaultParameters(): Parameters {
+  return {
+    timeoutDelay: 5000,
+    syncRetryDelay: 10000
+  };
 }
 
 export interface Committee {
@@ -13,14 +25,22 @@ export interface Committee {
 }
 
 export function makeCommittee(
-  entries: Array<{ name: PublicKey; stake: Stake; address: string }>,
+  info: Array<{ name: PublicKey; stake: Stake; address: string }>,
   epoch: EpochNumber
 ): Committee {
   const authorities = new Map<PublicKey, Authority>();
-  for (const { name, stake, address } of entries) {
+  for (const { name, stake, address } of info) {
     authorities.set(name, { stake, address });
   }
   return { authorities, epoch };
+}
+
+export function size(c: Committee): number {
+  return c.authorities.size;
+}
+
+export function stake(c: Committee, name: PublicKey): Stake {
+  return c.authorities.get(name)?.stake ?? 0;
 }
 
 export function quorumThreshold(c: Committee): Stake {
@@ -40,9 +60,9 @@ export function broadcastAddresses(
   myself: PublicKey
 ): Array<{ name: PublicKey; address: string }> {
   const res: Array<{ name: PublicKey; address: string }> = [];
-  for (const [pk, auth] of c.authorities.entries()) {
-    if (pk !== myself) {
-      res.push({ name: pk, address: auth.address });
+  for (const [name, auth] of c.authorities.entries()) {
+    if (name !== myself) {
+      res.push({ name, address: auth.address });
     }
   }
   return res;

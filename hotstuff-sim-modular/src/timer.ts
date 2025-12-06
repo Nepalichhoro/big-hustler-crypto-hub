@@ -1,23 +1,12 @@
 export class Timer {
-  private durationMs: number;
-  private deadline: number;
-
-  constructor(durationMs: number) {
-    this.durationMs = durationMs;
-    this.deadline = Date.now() + durationMs;
-  }
+  constructor(private durationMs: number) {}
 
   reset(): void {
-    this.deadline = Date.now() + this.durationMs;
+    // no-op in this simple TS demo;
+    // caller just asks for a fresh wait() when needed.
   }
 
-  // Awaitable: resolves when the deadline passes.
   async wait(): Promise<void> {
-    while (true) {
-      const now = Date.now();
-      const remaining = this.deadline - now;
-      if (remaining <= 0) return;
-      await new Promise((r) => setTimeout(r, remaining));
-    }
+    await new Promise((resolve) => setTimeout(resolve, this.durationMs));
   }
 }

@@ -1,10 +1,11 @@
-import { ConsensusMessage, PublicKey } from "./types";
-import { Committee } from "./committee";
+import { ConsensusMessage, PublicKey } from "./messages";
+
+type Handler = (msg: ConsensusMessage) => void;
 
 export class Network {
-  private handlers = new Map<PublicKey, (msg: ConsensusMessage) => void>();
+  private handlers = new Map<PublicKey, Handler>();
 
-  register(name: PublicKey, handler: (msg: ConsensusMessage) => void): void {
+  register(name: PublicKey, handler: Handler): void {
     this.handlers.set(name, handler);
   }
 
@@ -15,10 +16,10 @@ export class Network {
     }
   }
 
-  broadcast(from: PublicKey, committee: Committee, msg: ConsensusMessage): void {
-    for (const [pk] of committee.authorities) {
-      if (pk !== from) {
-        this.send(pk, msg);
+  broadcast(from: PublicKey, msg: ConsensusMessage): void {
+    for (const [name, handler] of this.handlers.entries()) {
+      if (name !== from) {
+        handler(msg);
       }
     }
   }
