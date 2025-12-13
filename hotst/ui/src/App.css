@@ -223,6 +223,19 @@ button:active {
   font-size: 14px;
 }
 
+.json-view {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #0c1427;
+  color: #d5e3ff;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: auto;
+  max-height: 360px;
+}
+
 .section-heading {
   margin: 28px 0 14px;
 }

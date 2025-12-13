@@ -329,6 +329,38 @@ function App() {
     state.committedBlocks.length,
   ])
 
+  const dataSnapshot = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          currentRound: state.currentRound,
+          highQC: state.highQC,
+          locked: {
+            lockedRound: state.lockedRound,
+            lockedBlock: state.lockedBlock,
+          },
+          proposal: state.proposal ?? null,
+          certifiedByRound: state.certifiedByRound,
+          timeoutsIssued: state.timeoutIssued,
+          staleMessagesIgnored: state.staleMessagesIgnored,
+          committedBlocks: state.committedBlocks,
+        },
+        null,
+        2,
+      ),
+    [
+      state.certifiedByRound,
+      state.committedBlocks,
+      state.currentRound,
+      state.highQC,
+      state.lockedBlock,
+      state.lockedRound,
+      state.proposal,
+      state.staleMessagesIgnored,
+      state.timeoutIssued,
+    ],
+  )
+
   return (
     <div className="page">
       <header className="hero">
@@ -422,6 +454,14 @@ function App() {
             Every action re-checks the invariants. Votes are gated by
             justifyQC.round &gt; lockedRound, and QCs cannot conflict.
           </p>
+        </div>
+
+        <div className="card">
+          <div className="card-heading">
+            <p className="label">Data structures</p>
+            <p className="sub">Inspect the live JSON backing this view.</p>
+          </div>
+          <pre className="json-view">{dataSnapshot}</pre>
         </div>
 
         <div className="card">
