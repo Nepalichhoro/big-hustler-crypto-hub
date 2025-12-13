@@ -32,6 +32,19 @@ h1 {
   color: #b2c4ff;
 }
 
+.timer-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mini-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #9fb5ff;
+}
+
 .chips {
   display: flex;
   gap: 10px;
@@ -273,6 +286,18 @@ button:active {
   color: #c8d6ff;
 }
 
+.vote-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d9e1ff;
+  font-size: 13px;
+}
+
 .round-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -379,6 +404,43 @@ button:active {
   margin: 4px 0;
   color: #c8d6ff;
   font-size: 14px;
+}
+
+.node-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.vote-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: fit-content;
+}
+
+.vote-pill.approve {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.vote-pill.deny {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.vote-pill.pending {
+  color: #facc15;
+  border-color: rgba(250, 204, 21, 0.5);
+}
+
+.vote-pill.ignored {
+  color: #9fb5ff;
 }
 
 .ghost.full {

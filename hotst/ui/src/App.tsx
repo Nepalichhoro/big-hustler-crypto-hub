@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type CertificateKind = 'QC' | 'TC'
@@ -34,6 +34,8 @@ type RoundRecord = {
   notes: string[]
 }
 
+type VoteStatus = 'pending' | 'approve' | 'deny' | 'ignored'
+
 type NodeState = {
   currentRound: number
   lockedRound: number
@@ -50,6 +52,9 @@ type NodeState = {
   staleMessagesIgnored: number
   roundRecords: Record<number, RoundRecord>
   selectedRound: number
+  nodeVotes: Record<string, VoteStatus>
+  decisionDeadline?: number
+  proposeDeadline?: number
   modalRound: number | null
   log: LogEntry[]
   lastVoteSafety: 'unknown' | 'safe' | 'blocked'
@@ -64,6 +69,18 @@ const genesisQC: Certificate = {
   block: 'Genesis',
   label: 'QC(Genesis)',
 }
+
+const statusLabel: Record<InvariantStatus, string> = {
+  ok: 'Holds',
+  warn: 'Pending',
+  fail: 'Violated',
+}
+
+const nodeCycle = ['Leader', 'Replica 1', 'Replica 2', 'Replica 3', 'Replica 4'] as const
+const leaderForRound = (round: number) => nodeCycle[round % nodeCycle.length]
+const VOTE_THRESHOLD = 3
+const DECISION_WINDOW_MS = 6000
+const PROPOSE_WINDOW_MS = 6000
 
 const initialRoundRecords: Record<number, RoundRecord> = {
   0: {
@@ -90,6 +107,9 @@ const initialState: NodeState = {
   staleMessagesIgnored: 0,
   roundRecords: initialRoundRecords,
   selectedRound: 0,
+  nodeVotes: {},
+  decisionDeadline: undefined,
+  proposeDeadline: Date.now() + PROPOSE_WINDOW_MS,
   modalRound: null,
   log: [
     {
@@ -104,17 +124,159 @@ const initialState: NodeState = {
 const trimLog = (log: LogEntry[], entry: LogEntry) =>
   [entry, ...log].slice(0, 18)
 
-const statusLabel: Record<InvariantStatus, string> = {
-  ok: 'Holds',
-  warn: 'Pending',
-  fail: 'Violated',
-}
-
-const nodeCycle = ['Leader', 'Replica 1', 'Replica 2', 'Replica 3', 'Replica 4'] as const
-const leaderForRound = (round: number) => nodeCycle[round % nodeCycle.length]
-
 function App() {
   const [state, setState] = useState<NodeState>(initialState)
+
+  const markTimeout = (reason?: string) =>
+    setState((prev) => {
+      const tcRound = prev.currentRound
+      const tc: Certificate = {
+        round: tcRound,
+        type: 'TC',
+        formedBy: 'timeouts',
+        label: `TC(R${tcRound})`,
+      }
+
+      const nextRound = Math.min(prev.currentRound + 1, 5)
+      const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
+      const highQCRegressed =
+        prev.highQCRegressed || tc.round < prev.highQC.round
+
+      const nodeVotes = Object.keys(prev.nodeVotes).length
+        ? Object.fromEntries(
+            Object.entries(prev.nodeVotes).map(([k, v]) => [
+              k,
+              v === 'pending' ? 'ignored' : v,
+            ]),
+          )
+        : prev.nodeVotes
+
+      return {
+        ...prev,
+        highQC: tc.round >= prev.highQC.round ? tc : prev.highQC,
+        highQCRegressed,
+        timeoutIssued: true,
+        currentRound: nextRound,
+        roundAdvanced: true,
+        roundRegressed,
+        proposal: undefined,
+        lastVoteSafety: 'unknown',
+        nodeVotes,
+        decisionDeadline: undefined,
+        proposeDeadline:
+          nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined,
+        roundRecords: (() => {
+          const records = { ...prev.roundRecords }
+          records[prev.currentRound] = {
+            ...(records[prev.currentRound] ?? {
+              round: prev.currentRound,
+              notes: [],
+            }),
+            tc,
+            notes: [
+              ...(records[prev.currentRound]?.notes ?? []),
+              `TC collected in Round ${prev.currentRound}.`,
+            ],
+          }
+          if (!records[nextRound]) {
+            records[nextRound] = {
+              round: nextRound,
+              justifyQC: tc,
+              parent: records[prev.currentRound]?.proposal?.blockId,
+              notes: [`Entered Round ${nextRound} via ${tc.label}.`],
+            }
+          }
+          return records
+        })(),
+        selectedRound: Math.min(nextRound, 5),
+        log: trimLog(prev.log, {
+          title: 'Timeout collected',
+          detail:
+            reason ??
+            'TC pushes replicas forward when QC is slow or leader idle.',
+          tag: 'round',
+        }),
+      }
+    })
+
+  const handleVote = (label: string, choice: VoteStatus) => {
+    setState((prev) => {
+      if (!prev.proposal) {
+        return trimOnly(prev, {
+          title: 'No proposal to vote on',
+          detail: 'Propose a block before casting votes.',
+          tag: 'info',
+        })
+      }
+
+      if (prev.nodeVotes[label] && prev.nodeVotes[label] !== 'pending') {
+        return trimOnly(prev, {
+          title: 'Vote already recorded',
+          detail: `${label} already ${prev.nodeVotes[label]}.`,
+          tag: 'info',
+        })
+      }
+
+      const votes = {
+        ...prev.nodeVotes,
+        [label]: choice,
+      }
+      const approvals = Object.values(votes).filter((v) => v === 'approve').length
+
+      if (approvals >= VOTE_THRESHOLD) {
+        // Enough approvals—form QC immediately
+        return produceQCFromVotes(prev, votes)
+      }
+
+      return {
+        ...prev,
+        nodeVotes: votes,
+        log: trimLog(prev.log, {
+          title: `${label} chose ${choice}`,
+          detail: `Approvals ${approvals}/${VOTE_THRESHOLD}.`,
+          tag: 'round',
+        }),
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (!state.proposal || !state.decisionDeadline) return
+
+    const approvals = Object.values(state.nodeVotes).filter(
+      (v) => v === 'approve',
+    ).length
+    if (approvals >= VOTE_THRESHOLD) return
+
+    const remaining = state.decisionDeadline - Date.now()
+    if (remaining <= 0) {
+      markTimeout()
+      return
+    }
+
+    const timer = setTimeout(() => {
+      markTimeout()
+    }, remaining)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.proposal?.blockId, state.decisionDeadline, state.nodeVotes])
+
+  useEffect(() => {
+    if (state.proposal) return
+    if (!state.proposeDeadline) return
+
+    const remaining = state.proposeDeadline - Date.now()
+    if (remaining <= 0) {
+      markTimeout('Leader idle: no proposal within window.')
+      return
+    }
+    const timer = setTimeout(
+      () => markTimeout('Leader idle: no proposal within window.'),
+      remaining,
+    )
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.proposeDeadline, state.proposal?.blockId])
 
   const proposeBlock = () => {
     setState((prev) => {
@@ -149,6 +311,11 @@ function App() {
         proposal,
         lastVoteSafety: 'unknown',
         roundRecords: updatedRecords,
+        nodeVotes: Object.fromEntries(
+          nodeCycle.map((label) => [label, 'pending' as VoteStatus]),
+        ),
+        decisionDeadline: Date.now() + DECISION_WINDOW_MS,
+        proposeDeadline: undefined,
         log: trimLog(prev.log, {
           title: `Leader proposes ${blockId}`,
           detail: `Proposal extends ${proposal.justifyQC.label} into Round ${targetRound}.`,
@@ -168,149 +335,22 @@ function App() {
         })
       }
 
-      const safeToVote =
-        prev.proposal.justifyQC.round > prev.lockedRound &&
-        prev.lockedRound <= prev.highQC.round
-
-      if (!safeToVote) {
+      const approvals =
+        Object.values(prev.nodeVotes).filter((v) => v === 'approve').length
+      if (approvals < VOTE_THRESHOLD) {
         return trimOnly(prev, {
-          title: 'Vote blocked',
-          detail: 'Safety-to-vote rule refused this proposal.',
-          tag: 'safety',
+          title: 'Not enough approvals',
+          detail: `Need ${VOTE_THRESHOLD} approvals; currently ${approvals}.`,
+          tag: 'info',
         })
       }
 
-      const roundKey = prev.proposal.round
-      const existing = prev.certifiedByRound[roundKey]
-      const conflictDetected =
-        (existing && existing !== prev.proposal.blockId) ||
-        prev.hasConflictingQC
-
-      const qc: Certificate = {
-        round: roundKey,
-        type: 'QC',
-        formedBy: 'votes',
-        block: prev.proposal.blockId,
-        label: `QC(${prev.proposal.blockId})`,
-      }
-
-      const nextRound = Math.min(Math.max(prev.currentRound, roundKey + 1), 5)
-      const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
-      const highQCRegressed =
-        prev.highQCRegressed || qc.round < prev.highQC.round
-
-      const nextLog = trimLog(
-        conflictDetected
-          ? trimLog(prev.log, {
-              title: 'Conflicting QC avoided',
-              detail: 'Duplicate certification attempt was ignored.',
-              tag: 'safety',
-            })
-          : prev.log,
-        {
-          title: `QC formed for ${prev.proposal.blockId}`,
-          detail: `2f+1 votes certify Round ${roundKey} and advance to Round ${nextRound}.`,
-          tag: 'round',
-        },
-      )
-
-      const updatedRecords: Record<number, RoundRecord> = {
-        ...prev.roundRecords,
-        [roundKey]: {
-          ...(prev.roundRecords[roundKey] ?? { round: roundKey, notes: [] }),
-          proposal: prev.proposal,
-          qc,
-          justifyQC: prev.proposal.justifyQC,
-          parent: prev.proposal.parent,
-          notes: [
-            ...(prev.roundRecords[roundKey]?.notes ?? []),
-            `QC formed via votes for ${prev.proposal.blockId}.`,
-          ],
-        },
-      }
-
-      if (!updatedRecords[nextRound]) {
-        updatedRecords[nextRound] = {
-          round: nextRound,
-          justifyQC: qc,
-          parent: prev.proposal.blockId,
-          notes: [`Entered Round ${nextRound} via ${qc.label}.`],
-        }
-      }
-
-      return {
-        ...prev,
-        highQC: qc,
-        highQCRegressed,
-        currentRound: nextRound,
-        roundRegressed,
-        roundAdvanced: true,
-        certifiedByRound: { ...prev.certifiedByRound, [roundKey]: qc.block! },
-        hasConflictingQC: conflictDetected,
-        lastVoteSafety: 'safe',
-        proposal: { ...prev.proposal, justifyQC: qc },
-        roundRecords: updatedRecords,
-        selectedRound: Math.min(nextRound, 5),
-        log: nextLog,
-      }
+      return produceQCFromVotes(prev, prev.nodeVotes)
     })
   }
 
   const triggerTimeout = () => {
-    setState((prev) => {
-      const tc: Certificate = {
-        round: prev.currentRound,
-        type: 'TC',
-        formedBy: 'timeouts',
-        label: `TC(R${prev.currentRound})`,
-      }
-
-      const nextRound = Math.min(prev.currentRound + 1, 5)
-      const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
-      const highQCRegressed =
-        prev.highQCRegressed || tc.round < prev.highQC.round
-
-      return {
-        ...prev,
-        highQC: tc.round >= prev.highQC.round ? tc : prev.highQC,
-        highQCRegressed,
-        timeoutIssued: true,
-        currentRound: nextRound,
-        roundAdvanced: true,
-        roundRegressed,
-        proposal: undefined,
-        lastVoteSafety: 'unknown',
-        roundRecords: (() => {
-          const records = { ...prev.roundRecords }
-          records[prev.currentRound] = {
-            ...(records[prev.currentRound] ?? {
-              round: prev.currentRound,
-              notes: [],
-            }),
-            tc,
-            notes: [
-              ...(records[prev.currentRound]?.notes ?? []),
-              `TC collected in Round ${prev.currentRound}.`,
-            ],
-          }
-          if (!records[nextRound]) {
-            records[nextRound] = {
-              round: nextRound,
-              justifyQC: tc,
-              parent: records[prev.currentRound]?.proposal?.blockId,
-              notes: [`Entered Round ${nextRound} via ${tc.label}.`],
-            }
-          }
-          return records
-        })(),
-        selectedRound: Math.min(nextRound, 5),
-        log: trimLog(prev.log, {
-          title: 'Timeout collected',
-          detail: 'TC pushes replicas forward when QC is slow.',
-          tag: 'round',
-        }),
-      }
-    })
+    markTimeout()
   }
 
   const ignoreStaleMessage = () => {
@@ -451,6 +491,9 @@ function App() {
           staleMessagesIgnored: state.staleMessagesIgnored,
           committedBlocks: state.committedBlocks,
           roundRecords: state.roundRecords,
+          nodeVotes: state.nodeVotes,
+          decisionDeadline: state.decisionDeadline,
+          proposeDeadline: state.proposeDeadline,
         },
         null,
         2,
@@ -466,6 +509,9 @@ function App() {
       state.staleMessagesIgnored,
       state.timeoutIssued,
       state.roundRecords,
+      state.nodeVotes,
+      state.decisionDeadline,
+      state.proposeDeadline,
     ],
   )
 
@@ -486,6 +532,15 @@ function App() {
         } as RoundRecord)
       : null
   const modalLeader = modalRecord ? leaderForRound(modalRecord.round) : null
+  const approvalsCount = Object.values(state.nodeVotes).filter(
+    (v) => v === 'approve',
+  ).length
+  const proposeRemaining = state.proposeDeadline
+    ? Math.max(0, Math.ceil((state.proposeDeadline - Date.now()) / 1000))
+    : null
+  const decisionRemaining = state.decisionDeadline
+    ? Math.max(0, Math.ceil((state.decisionDeadline - Date.now()) / 1000))
+    : null
 
   return (
     <div className="page">
@@ -508,6 +563,28 @@ function App() {
             <span className="chip">
               lockedRound <strong>{state.lockedRound}</strong>
             </span>
+          </div>
+          <div className="timer-strip">
+            <div>
+              <p className="stat-label">Proposal window</p>
+              <p className="stat-value">
+                {state.proposal
+                  ? 'Proposed'
+                  : proposeRemaining !== null
+                    ? `${proposeRemaining}s`
+                    : '—'}
+              </p>
+              <p className="mini-note">If leader stays idle, TC will form.</p>
+            </div>
+            <div>
+              <p className="stat-label">Vote window</p>
+              <p className="stat-value">
+                {state.proposal && decisionRemaining !== null
+                  ? `${decisionRemaining}s`
+                  : '—'}
+              </p>
+              <p className="mini-note">After expiry, pending votes become ignored.</p>
+            </div>
           </div>
         </div>
         <div className="stage-card">
@@ -675,6 +752,23 @@ function App() {
                 ? `Block ${selectedRecord.proposal.blockId} extends ${selectedRecord.proposal.justifyQC.label}.`
                 : 'No proposal observed for this round.'}
             </p>
+            {state.proposal && state.proposal.round === selectedRecord.round && (
+              <div className="vote-strip">
+                <span>
+                  Approvals {approvalsCount}/{VOTE_THRESHOLD}
+                </span>
+                {state.decisionDeadline && (
+                  <span>
+                    Decision window:{' '}
+                    {Math.max(
+                      0,
+                      Math.ceil((state.decisionDeadline - Date.now()) / 1000),
+                    )}{' '}
+                    s
+                  </span>
+                )}
+              </div>
+            )}
             <div className="round-grid">
               <div>
                 <p className="stat-label">Block</p>
@@ -734,6 +828,9 @@ function App() {
           <div className="node-grid">
             {nodeCycle.map((label) => {
               const isLeader = label === selectedLeader
+              const vote = state.nodeVotes[label] ?? 'pending'
+              const canVote =
+                Boolean(state.proposal) && vote === 'pending' && selectedRecord.round === state.proposal?.round
               return (
                 <div key={label} className={`node-card ${isLeader ? 'leader' : ''}`}>
                   <div className="node-head">
@@ -750,6 +847,28 @@ function App() {
                   <p className="node-line">
                     TC: {selectedRecord.tc?.label ?? '—'}
                   </p>
+                  <p className={`vote-pill ${vote}`}>Vote: {vote}</p>
+                  <div className="node-actions">
+                    <button
+                      disabled={!canVote}
+                      onClick={() => handleVote(label, 'approve')}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      disabled={!canVote}
+                      onClick={() => handleVote(label, 'deny')}
+                    >
+                      Deny
+                    </button>
+                    <button
+                      className="ghost"
+                      disabled={!canVote}
+                      onClick={() => handleVote(label, 'ignored')}
+                    >
+                      Ignore
+                    </button>
+                  </div>
                   <button
                     className="ghost full"
                     onClick={() => setSelectedRound(selectedRecord.round, true)}
@@ -853,6 +972,101 @@ function App() {
       )}
     </div>
   )
+}
+
+function produceQCFromVotes(
+  prev: NodeState,
+  votes: Record<string, VoteStatus>,
+): NodeState {
+  if (!prev.proposal) return prev
+
+  const safeToVote =
+    prev.proposal.justifyQC.round > prev.lockedRound &&
+    prev.lockedRound <= prev.highQC.round
+
+  if (!safeToVote) {
+    return trimOnly(prev, {
+      title: 'Vote blocked',
+      detail: 'Safety-to-vote rule refused this proposal.',
+      tag: 'safety',
+    })
+  }
+
+  const roundKey = prev.proposal.round
+  const existing = prev.certifiedByRound[roundKey]
+  const conflictDetected =
+    (existing && existing !== prev.proposal.blockId) || prev.hasConflictingQC
+
+  const qc: Certificate = {
+    round: roundKey,
+    type: 'QC',
+    formedBy: 'votes',
+    block: prev.proposal.blockId,
+    label: `QC(${prev.proposal.blockId})`,
+  }
+
+  const nextRound = Math.min(Math.max(prev.currentRound, roundKey + 1), 5)
+  const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
+  const highQCRegressed = prev.highQCRegressed || qc.round < prev.highQC.round
+
+  const nextLog = trimLog(
+    conflictDetected
+      ? trimLog(prev.log, {
+          title: 'Conflicting QC avoided',
+          detail: 'Duplicate certification attempt was ignored.',
+          tag: 'safety',
+        })
+      : prev.log,
+    {
+      title: `QC formed for ${prev.proposal.blockId}`,
+      detail: `2f+1 votes certify Round ${roundKey} and advance to Round ${nextRound}.`,
+      tag: 'round',
+    },
+  )
+
+  const updatedRecords: Record<number, RoundRecord> = {
+    ...prev.roundRecords,
+    [roundKey]: {
+      ...(prev.roundRecords[roundKey] ?? { round: roundKey, notes: [] }),
+      proposal: prev.proposal,
+      qc,
+      justifyQC: prev.proposal.justifyQC,
+      parent: prev.proposal.parent,
+      notes: [
+        ...(prev.roundRecords[roundKey]?.notes ?? []),
+        `QC formed via votes for ${prev.proposal.blockId}.`,
+      ],
+    },
+  }
+
+  if (!updatedRecords[nextRound]) {
+    updatedRecords[nextRound] = {
+      round: nextRound,
+      justifyQC: qc,
+      parent: prev.proposal.blockId,
+      notes: [`Entered Round ${nextRound} via ${qc.label}.`],
+    }
+  }
+
+  return {
+    ...prev,
+    highQC: qc,
+    highQCRegressed,
+    currentRound: nextRound,
+    roundRegressed,
+    roundAdvanced: true,
+    certifiedByRound: { ...prev.certifiedByRound, [roundKey]: qc.block! },
+    hasConflictingQC: conflictDetected,
+    lastVoteSafety: 'safe',
+    proposal: { ...prev.proposal, justifyQC: qc },
+    nodeVotes: votes,
+    decisionDeadline: undefined,
+    proposeDeadline:
+      nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined,
+    roundRecords: updatedRecords,
+    selectedRound: Math.min(nextRound, 5),
+    log: nextLog,
+  }
 }
 
 function trimOnly(prev: NodeState, entry: LogEntry): NodeState {
