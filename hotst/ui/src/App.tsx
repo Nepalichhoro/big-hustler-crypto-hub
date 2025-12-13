@@ -24,6 +24,16 @@ type LogEntry = {
   tag?: 'safety' | 'info' | 'ignored' | 'round'
 }
 
+type RoundRecord = {
+  round: number
+  proposal?: Proposal
+  qc?: Certificate
+  tc?: Certificate
+  justifyQC?: Certificate
+  parent?: string
+  notes: string[]
+}
+
 type NodeState = {
   currentRound: number
   lockedRound: number
@@ -38,6 +48,9 @@ type NodeState = {
   roundAdvanced: boolean
   timeoutIssued: boolean
   staleMessagesIgnored: number
+  roundRecords: Record<number, RoundRecord>
+  selectedRound: number
+  modalRound: number | null
   log: LogEntry[]
   lastVoteSafety: 'unknown' | 'safe' | 'blocked'
 }
@@ -50,6 +63,16 @@ const genesisQC: Certificate = {
   formedBy: 'votes',
   block: 'Genesis',
   label: 'QC(Genesis)',
+}
+
+const initialRoundRecords: Record<number, RoundRecord> = {
+  0: {
+    round: 0,
+    qc: genesisQC,
+    justifyQC: genesisQC,
+    parent: '⊥',
+    notes: ['Genesis QC anchors the chain.'],
+  },
 }
 
 const initialState: NodeState = {
@@ -65,6 +88,9 @@ const initialState: NodeState = {
   roundAdvanced: false,
   timeoutIssued: false,
   staleMessagesIgnored: 0,
+  roundRecords: initialRoundRecords,
+  selectedRound: 0,
+  modalRound: null,
   log: [
     {
       title: 'Genesis loaded',
@@ -89,20 +115,40 @@ function App() {
 
   const proposeBlock = () => {
     setState((prev) => {
+      const targetRound = Math.min(prev.currentRound, 5)
+      const blockId = `B${targetRound}`
       const proposal: Proposal = {
-        blockId: 'B0',
-        round: 0,
+        blockId,
+        round: targetRound,
         parent: prev.highQC.block ?? 'Genesis',
         justifyQC: prev.highQC,
+      }
+
+      const updatedRecords: Record<number, RoundRecord> = {
+        ...prev.roundRecords,
+        [targetRound]: {
+          ...(prev.roundRecords[targetRound] ?? {
+            round: targetRound,
+            notes: [],
+          }),
+          proposal,
+          justifyQC: proposal.justifyQC,
+          parent: proposal.parent,
+          notes: [
+            ...(prev.roundRecords[targetRound]?.notes ?? []),
+            `Leader proposed ${blockId} extending ${proposal.justifyQC.label}.`,
+          ],
+        },
       }
 
       return {
         ...prev,
         proposal,
         lastVoteSafety: 'unknown',
+        roundRecords: updatedRecords,
         log: trimLog(prev.log, {
-          title: 'Leader proposes B0',
-          detail: `Proposal extends ${proposal.justifyQC.label} into Round 0.`,
+          title: `Leader proposes ${blockId}`,
+          detail: `Proposal extends ${proposal.justifyQC.label} into Round ${targetRound}.`,
           tag: 'round',
         }),
       }
@@ -145,7 +191,7 @@ function App() {
         label: `QC(${prev.proposal.blockId})`,
       }
 
-      const nextRound = Math.max(prev.currentRound, roundKey + 1)
+      const nextRound = Math.min(Math.max(prev.currentRound, roundKey + 1), 5)
       const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
       const highQCRegressed =
         prev.highQCRegressed || qc.round < prev.highQC.round
@@ -159,11 +205,35 @@ function App() {
             })
           : prev.log,
         {
-          title: 'QC formed for B0',
-          detail: '2f+1 votes certify B0 and advance to Round 1.',
+          title: `QC formed for ${prev.proposal.blockId}`,
+          detail: `2f+1 votes certify Round ${roundKey} and advance to Round ${nextRound}.`,
           tag: 'round',
         },
       )
+
+      const updatedRecords: Record<number, RoundRecord> = {
+        ...prev.roundRecords,
+        [roundKey]: {
+          ...(prev.roundRecords[roundKey] ?? { round: roundKey, notes: [] }),
+          proposal: prev.proposal,
+          qc,
+          justifyQC: prev.proposal.justifyQC,
+          parent: prev.proposal.parent,
+          notes: [
+            ...(prev.roundRecords[roundKey]?.notes ?? []),
+            `QC formed via votes for ${prev.proposal.blockId}.`,
+          ],
+        },
+      }
+
+      if (!updatedRecords[nextRound]) {
+        updatedRecords[nextRound] = {
+          round: nextRound,
+          justifyQC: qc,
+          parent: prev.proposal.blockId,
+          notes: [`Entered Round ${nextRound} via ${qc.label}.`],
+        }
+      }
 
       return {
         ...prev,
@@ -176,6 +246,8 @@ function App() {
         hasConflictingQC: conflictDetected,
         lastVoteSafety: 'safe',
         proposal: { ...prev.proposal, justifyQC: qc },
+        roundRecords: updatedRecords,
+        selectedRound: Math.min(nextRound, 5),
         log: nextLog,
       }
     })
@@ -190,7 +262,7 @@ function App() {
         label: `TC(R${prev.currentRound})`,
       }
 
-      const nextRound = prev.currentRound + 1
+      const nextRound = Math.min(prev.currentRound + 1, 5)
       const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
       const highQCRegressed =
         prev.highQCRegressed || tc.round < prev.highQC.round
@@ -205,6 +277,30 @@ function App() {
         roundRegressed,
         proposal: undefined,
         lastVoteSafety: 'unknown',
+        roundRecords: (() => {
+          const records = { ...prev.roundRecords }
+          records[prev.currentRound] = {
+            ...(records[prev.currentRound] ?? {
+              round: prev.currentRound,
+              notes: [],
+            }),
+            tc,
+            notes: [
+              ...(records[prev.currentRound]?.notes ?? []),
+              `TC collected in Round ${prev.currentRound}.`,
+            ],
+          }
+          if (!records[nextRound]) {
+            records[nextRound] = {
+              round: nextRound,
+              justifyQC: tc,
+              parent: records[prev.currentRound]?.proposal?.blockId,
+              notes: [`Entered Round ${nextRound} via ${tc.label}.`],
+            }
+          }
+          return records
+        })(),
+        selectedRound: Math.min(nextRound, 5),
         log: trimLog(prev.log, {
           title: 'Timeout collected',
           detail: 'TC pushes replicas forward when QC is slow.',
@@ -228,6 +324,13 @@ function App() {
       }),
     }))
   }
+
+  const setSelectedRound = (round: number, openModal?: boolean) =>
+    setState((prev) => ({
+      ...prev,
+      selectedRound: round,
+      modalRound: openModal ? round : prev.modalRound,
+    }))
 
   const reset = () => setState(initialState)
 
@@ -344,6 +447,7 @@ function App() {
           timeoutsIssued: state.timeoutIssued,
           staleMessagesIgnored: state.staleMessagesIgnored,
           committedBlocks: state.committedBlocks,
+          roundRecords: state.roundRecords,
         },
         null,
         2,
@@ -358,14 +462,33 @@ function App() {
       state.proposal,
       state.staleMessagesIgnored,
       state.timeoutIssued,
+      state.roundRecords,
     ],
   )
+
+  const selectedRecord =
+    state.roundRecords[state.selectedRound] ??
+    ({
+      round: state.selectedRound,
+      notes: ['Round not yet visited.'],
+    } as RoundRecord)
+
+  const roundList = Array.from({ length: 6 }).map((_, idx) => idx)
+
+  const modalRecord =
+    state.modalRound !== null
+      ? state.roundRecords[state.modalRound] ??
+        ({
+          round: state.modalRound,
+          notes: ['Round not yet visited.'],
+        } as RoundRecord)
+      : null
 
   return (
     <div className="page">
       <header className="hero">
         <div>
-          <p className="eyebrow">HotStuff • Genesis → Round 0 → Round 1</p>
+          <p className="eyebrow">HotStuff • Genesis → Round 5</p>
           <h1>Genesis Round Explorer</h1>
           <p className="lede">
             Walk through the first HotStuff round, see how QCs move, and watch
@@ -402,6 +525,11 @@ function App() {
             QC(Genesis) anchors Round 0. A QC(B0) or TC(0) is required to enter
             Round 1.
           </p>
+          <ul className="mini-list">
+            <li>Genesis</li>
+            <li>Round 0</li>
+            <li>Round 1</li>
+          </ul>
         </div>
       </header>
 
@@ -441,14 +569,22 @@ function App() {
 
         <div className="card actions">
           <div className="card-heading">
-            <p className="label">Round 0 controls</p>
+            <p className="label">Round controls (0-5)</p>
             <p className="sub">Drive the state machine by hand.</p>
           </div>
           <div className="action-buttons">
-            <button onClick={proposeBlock}>Propose B0 (extends highQC)</button>
-            <button onClick={formQCFromVotes}>Collect 2f+1 votes → QC(B0)</button>
-            <button onClick={triggerTimeout}>Timeouts → TC</button>
-            <button onClick={ignoreStaleMessage}>Ignore stale Round -1 msg</button>
+            <button onClick={proposeBlock}>
+              Propose B{state.currentRound} (extends highQC)
+            </button>
+            <button onClick={formQCFromVotes}>
+              {`Collect 2f+1 votes → QC(${state.proposal?.blockId ?? `B${state.currentRound}`})`}
+            </button>
+            <button onClick={triggerTimeout}>
+              Timeouts → TC(R{state.currentRound})
+            </button>
+            <button onClick={ignoreStaleMessage}>
+              Ignore stale Round {Math.max(state.currentRound - 1, 0)} msg
+            </button>
           </div>
           <p className="note">
             Every action re-checks the invariants. Votes are gated by
@@ -517,6 +653,122 @@ function App() {
         </div>
       </section>
 
+      <section className="chain-row">
+        <div className="card round-detail">
+          <div className="card-heading">
+            <p className="label">Round focus</p>
+            <p className="sub">Click the chain to inspect how we got here.</p>
+          </div>
+          <div className="round-summary">
+            <p className="label">Round {selectedRecord.round}</p>
+            <h3>
+              {selectedRecord.qc
+                ? 'Certified via QC'
+                : selectedRecord.tc
+                  ? 'Timeout collected'
+                  : selectedRecord.proposal
+                    ? 'Proposed'
+                    : 'Not visited yet'}
+            </h3>
+            <p className="detail">
+              {selectedRecord.proposal
+                ? `Block ${selectedRecord.proposal.blockId} extends ${selectedRecord.proposal.justifyQC.label}.`
+                : 'No proposal observed for this round.'}
+            </p>
+            <div className="round-grid">
+              <div>
+                <p className="stat-label">Block</p>
+                <p className="stat-value">
+                  {selectedRecord.proposal?.blockId ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">Parent</p>
+                <p className="stat-value">
+                  {selectedRecord.parent ?? selectedRecord.proposal?.parent ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">justifyQC</p>
+                <p className="stat-value">
+                  {selectedRecord.justifyQC?.label ??
+                    selectedRecord.proposal?.justifyQC.label ??
+                    '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">QC</p>
+                <p className="stat-value">
+                  {selectedRecord.qc?.label ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">TC</p>
+                <p className="stat-value">
+                  {selectedRecord.tc?.label ?? '—'}
+                </p>
+              </div>
+            </div>
+            <div className="notes-list">
+              {(selectedRecord.notes ?? []).map((note, idx) => (
+                <div key={`${note}-${idx}`} className="note-chip">
+                  {note}
+                </div>
+              ))}
+            </div>
+            <pre className="json-view small">
+              {JSON.stringify(selectedRecord, null, 2)}
+            </pre>
+          </div>
+        </div>
+
+        <div className="card round-chain">
+          <div className="card-heading">
+            <p className="label">Blockchain round chain</p>
+            <p className="sub">Genesis → Round 5</p>
+          </div>
+          <div className="round-items">
+            {roundList.map((round) => {
+              const reached = Boolean(
+                state.roundRecords[round]?.proposal ||
+                  state.roundRecords[round]?.qc ||
+                  state.roundRecords[round]?.tc ||
+                  round === 0,
+              )
+              return (
+                <button
+                  key={round}
+                  className={`round-item ${
+                state.selectedRound === round ? 'active' : ''
+              } ${reached ? 'reached' : ''}`}
+                  onClick={() => setSelectedRound(round, true)}
+                >
+                  <span className="round-circle">{round}</span>
+                  <div className="round-meta">
+                    <p className="round-title">
+                      {round === 0 ? 'Genesis / Round 0' : `Round ${round}`}
+                    </p>
+                    <p className="round-desc">
+                      {state.roundRecords[round]?.qc
+                        ? state.roundRecords[round]?.qc?.label
+                        : state.roundRecords[round]?.tc
+                          ? state.roundRecords[round]?.tc?.label
+                          : state.roundRecords[round]?.proposal?.blockId
+                            ? `Proposal ${state.roundRecords[round]?.proposal?.blockId}`
+                            : 'Not reached yet'}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          <p className="note">
+            Click a round to see the chain of justifications (proposal →
+            QC/TC) that delivered it. Up to Round 5 is represented here.
+          </p>
+        </div>
+      </section>
+
       <section className="log">
         <div className="section-heading">
           <h2>Event log</h2>
@@ -538,6 +790,65 @@ function App() {
           ))}
         </div>
       </section>
+
+      {modalRecord && (
+        <div className="modal-backdrop" onClick={() => setState((p) => ({ ...p, modalRound: null }))}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <p className="label">Round detail</p>
+                <h3>Round {modalRecord.round}</h3>
+              </div>
+              <button
+                className="ghost"
+                onClick={() => setState((p) => ({ ...p, modalRound: null }))}
+              >
+                Close
+              </button>
+            </div>
+            <div className="round-grid">
+              <div>
+                <p className="stat-label">Block</p>
+                <p className="stat-value">
+                  {modalRecord.proposal?.blockId ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">Parent</p>
+                <p className="stat-value">
+                  {modalRecord.parent ?? modalRecord.proposal?.parent ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">justifyQC</p>
+                <p className="stat-value">
+                  {modalRecord.justifyQC?.label ??
+                    modalRecord.proposal?.justifyQC.label ??
+                    '—'}
+                </p>
+              </div>
+              <div>
+                <p className="stat-label">QC</p>
+                <p className="stat-value">{modalRecord.qc?.label ?? '—'}</p>
+              </div>
+              <div>
+                <p className="stat-label">TC</p>
+                <p className="stat-value">{modalRecord.tc?.label ?? '—'}</p>
+              </div>
+            </div>
+            <div className="notes-list">
+              {(modalRecord.notes ?? []).map((note, idx) => (
+                <div key={`${note}-${idx}`} className="note-chip">
+                  {note}
+                </div>
+              ))}
+            </div>
+            <pre className="json-view small">
+              {JSON.stringify(modalRecord, null, 2)}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
