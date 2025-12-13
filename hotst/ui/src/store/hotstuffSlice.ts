@@ -341,8 +341,35 @@ const hotstuffSlice = createSlice({
         [label]: choice,
       }
       const approvals = Object.values(state.nodeVotes).filter((v) => v === 'approve').length
+      const denies = Object.values(state.nodeVotes).filter((v) => v === 'deny').length
       if (approvals >= VOTE_THRESHOLD) {
         produceQCFromVotes(state, state.nodeVotes)
+      } else if (denies >= VOTE_THRESHOLD) {
+        state.lastVoteSafety = 'blocked'
+        state.log = trimLog(state.log, {
+          title: 'Proposal rejected',
+          detail: `2f+1 denies for ${state.proposal.blockId}; entering NewView.`,
+          tag: 'safety',
+        })
+        state.roundRecords = {
+          ...state.roundRecords,
+          [state.proposal.round]: {
+            ...(state.roundRecords[state.proposal.round] ?? {
+              round: state.proposal.round,
+              notes: [],
+            }),
+            proposal: state.proposal,
+            notes: [
+              ...(state.roundRecords[state.proposal.round]?.notes ?? []),
+              `Proposal ${state.proposal.blockId} rejected by 2f+1 denies.`,
+            ],
+          },
+        }
+        state.proposal = undefined
+        state.nodeVotes = {}
+        state.decisionDeadline = undefined
+        state.timeoutSenders = []
+        state.proposeDeadline = Date.now() + PROPOSE_WINDOW_MS
       } else {
         state.log = trimLog(state.log, {
           title: `${label} chose ${choice}`,
