@@ -8,5 +8,7 @@
 
 3️⃣ Vote → QC formation (network effect)
 
+4️⃣ Lock update (local commitment)
 
+5️⃣ Why this guarantees safety (the punchline)
 
