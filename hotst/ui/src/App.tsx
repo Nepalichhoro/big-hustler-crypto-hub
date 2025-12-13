@@ -1,356 +1,92 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import './App.css'
-import { RoundModal } from './components/RoundModal'
-import { Toaster } from './components/Toaster'
 import { HomePage } from './components/HomePage'
 import { InvariantsPage } from './components/InvariantsPage'
+import { RoundModal } from './components/RoundModal'
+import { Toaster } from './components/Toaster'
+import { leaderForRound } from './constants'
+import type { LogEntry, RoundRecord, VoteStatus } from './types'
 import {
-  DECISION_WINDOW_MS,
-  PROPOSE_WINDOW_MS,
-  VOTE_THRESHOLD,
-  genesisQC,
-  initialRoundRecords,
-  leaderForRound,
-  nodeCycle,
-} from './constants'
-import type {
-  Certificate,
-  LogEntry,
-  Proposal,
-  RoundRecord,
-  Toast,
-  VoteStatus,
-} from './types'
-
-type NodeState = {
-  currentRound: number
-  lockedRound: number
-  lockedBlock: string | null
-  highQC: Certificate
-  proposal?: Proposal
-  roundRegressed: boolean
-  highQCRegressed: boolean
-  certifiedByRound: Record<number, string>
-  hasConflictingQC: boolean
-  committedBlocks: string[]
-  roundAdvanced: boolean
-  timeoutIssued: boolean
-  staleMessagesIgnored: number
-  roundRecords: Record<number, RoundRecord>
-  selectedRound: number
-  nodeVotes: Record<string, VoteStatus>
-  decisionDeadline?: number
-  proposeDeadline?: number
-  modalRound: number | null
-  log: LogEntry[]
-  lastVoteSafety: 'unknown' | 'safe' | 'blocked'
-}
-
-type InvariantStatus = 'ok' | 'warn' | 'fail'
-
-const initialState: NodeState = {
-  currentRound: 0,
-  lockedRound: -1,
-  lockedBlock: null,
-  highQC: genesisQC,
-  roundRegressed: false,
-  highQCRegressed: false,
-  certifiedByRound: {},
-  hasConflictingQC: false,
-  committedBlocks: [],
-  roundAdvanced: false,
-  timeoutIssued: false,
-  staleMessagesIgnored: 0,
-  roundRecords: initialRoundRecords,
-  selectedRound: 0,
-  nodeVotes: {},
-  decisionDeadline: undefined,
-  proposeDeadline: Date.now() + PROPOSE_WINDOW_MS,
-  modalRound: null,
-  log: [
-    {
-      title: 'Genesis loaded',
-      detail: 'QC(Genesis) anchors the state; all replicas start flexible.',
-      tag: 'info',
-    },
-  ],
-  lastVoteSafety: 'unknown',
-}
-
-const trimLog = (log: LogEntry[], entry: LogEntry) =>
-  [entry, ...log].slice(0, 18)
+  addToast,
+  collectQCFromVotes,
+  ignoreStaleMessage,
+  proposeBlock,
+  recordVote,
+  resetState,
+  setModalRound,
+  setSelectedRound,
+  triggerTimeout,
+  removeToast,
+} from './store/hotstuffSlice'
+import type { RootState, AppDispatch } from './store/store'
+import type { InvariantStatus } from './store/hotstuffSlice'
 
 function App() {
-  const [state, setState] = useState<NodeState>(initialState)
-  const [toasts, setToasts] = useState<Toast[]>([])
+  const dispatch = useDispatch<AppDispatch>()
+  const state = useSelector((s: RootState) => s.hotstuff)
   const [now, setNow] = useState(Date.now())
 
-  const addToast = (message: string, tone: Toast['tone'] = 'info') => {
+  const addToastWithTTL = (message: string, tone: 'success' | 'warn' | 'error' | 'info' = 'info') => {
     const id = Date.now() + Math.random()
-    setToasts((prev) => [...prev, { id, message, tone }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 3600)
+    dispatch(addToast({ id, message, tone }))
+    setTimeout(() => dispatch(removeToast(id)), 3600)
   }
-
-  const markTimeout = (reason?: string) => {
-    addToast(reason ?? 'Timeout collected', 'warn')
-    setState((prev) => {
-      const tcRound = prev.currentRound
-      const tc: Certificate = {
-        round: tcRound,
-        type: 'TC',
-        formedBy: 'timeouts',
-        label: `TC(R${tcRound})`,
-      }
-
-      const nextRound = Math.min(prev.currentRound + 1, 5)
-      const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
-      const highQCRegressed =
-        prev.highQCRegressed || tc.round < prev.highQC.round
-
-      const nodeVotes = Object.keys(prev.nodeVotes).length
-        ? Object.fromEntries(
-            Object.entries(prev.nodeVotes).map(([k, v]) => [
-              k,
-              v === 'pending' ? 'ignored' : v,
-            ]),
-          )
-        : prev.nodeVotes
-
-      return {
-        ...prev,
-        highQC: tc.round >= prev.highQC.round ? tc : prev.highQC,
-        highQCRegressed,
-        timeoutIssued: true,
-        currentRound: nextRound,
-        roundAdvanced: true,
-        roundRegressed,
-        proposal: undefined,
-        lastVoteSafety: 'unknown',
-        nodeVotes,
-        decisionDeadline: undefined,
-        proposeDeadline:
-          nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined,
-        roundRecords: (() => {
-          const records = { ...prev.roundRecords }
-          records[prev.currentRound] = {
-            ...(records[prev.currentRound] ?? {
-              round: prev.currentRound,
-              notes: [],
-            }),
-            tc,
-            notes: [
-              ...(records[prev.currentRound]?.notes ?? []),
-              `TC collected in Round ${prev.currentRound}.`,
-            ],
-          }
-          if (!records[nextRound]) {
-            records[nextRound] = {
-              round: nextRound,
-              justifyQC: tc,
-              parent: records[prev.currentRound]?.proposal?.blockId,
-              notes: [`Entered Round ${nextRound} via ${tc.label}.`],
-            }
-          }
-          return records
-        })(),
-        selectedRound: Math.min(nextRound, 5),
-        log: trimLog(prev.log, {
-          title: 'Timeout collected',
-          detail:
-            reason ??
-            'TC pushes replicas forward when QC is slow or leader idle.',
-          tag: 'round',
-        }),
-      }
-    })
-  }
-
-  const handleVote = (label: string, choice: VoteStatus) => {
-    setState((prev) => {
-      if (!prev.proposal) {
-        return trimOnly(prev, {
-          title: 'No proposal to vote on',
-          detail: 'Propose a block before casting votes.',
-          tag: 'info',
-        })
-      }
-
-      if (prev.nodeVotes[label] && prev.nodeVotes[label] !== 'pending') {
-        return trimOnly(prev, {
-          title: 'Vote already recorded',
-          detail: `${label} already ${prev.nodeVotes[label]}.`,
-          tag: 'info',
-        })
-      }
-
-      const votes = {
-        ...prev.nodeVotes,
-        [label]: choice,
-      }
-      const approvals = Object.values(votes).filter((v) => v === 'approve').length
-
-      if (approvals >= VOTE_THRESHOLD) {
-        // Enough approvals—form QC immediately
-        return produceQCFromVotes(prev, votes)
-      }
-
-      return {
-        ...prev,
-        nodeVotes: votes,
-        log: trimLog(prev.log, {
-          title: `${label} chose ${choice}`,
-          detail: `Approvals ${approvals}/${VOTE_THRESHOLD}.`,
-          tag: 'round',
-        }),
-      }
-    })
-  }
-
-  useEffect(() => {
-    if (!state.proposal || !state.decisionDeadline) return
-
-    const approvals = Object.values(state.nodeVotes).filter(
-      (v) => v === 'approve',
-    ).length
-    if (approvals >= VOTE_THRESHOLD) return
-
-    const remaining = state.decisionDeadline - Date.now()
-    if (remaining <= 0) {
-      markTimeout()
-      return
-    }
-
-    const timer = setTimeout(() => {
-      markTimeout()
-    }, remaining)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.proposal?.blockId, state.decisionDeadline, state.nodeVotes])
-
-  useEffect(() => {
-    if (state.proposal) return
-    if (!state.proposeDeadline) return
-
-    const remaining = state.proposeDeadline - Date.now()
-    if (remaining <= 0) {
-      markTimeout('Leader idle: no proposal within window.')
-      return
-    }
-    const timer = setTimeout(
-      () => markTimeout('Leader idle: no proposal within window.'),
-      remaining,
-    )
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.proposeDeadline, state.proposal?.blockId])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  const proposeBlock = () => {
-    const targetRound = Math.min(state.currentRound, 5)
-    const blockId = `B${targetRound}`
-    setState((prev) => {
-      const proposal: Proposal = {
-        blockId,
-        round: targetRound,
-        parent: prev.highQC.block ?? 'Genesis',
-        justifyQC: prev.highQC,
-      }
+  useEffect(() => {
+    if (!state.proposal || !state.decisionDeadline) return
+    const remaining = state.decisionDeadline - Date.now()
+    const approvals = Object.values(state.nodeVotes).filter((v) => v === 'approve').length
+    if (approvals >= 3) return
+    if (remaining <= 0) {
+      addToastWithTTL('Decision window expired → TC', 'warn')
+      dispatch(triggerTimeout(undefined))
+      return
+    }
+    const timer = setTimeout(() => {
+      addToastWithTTL('Decision window expired → TC', 'warn')
+      dispatch(triggerTimeout(undefined))
+    }, remaining)
+    return () => clearTimeout(timer)
+  }, [state.proposal?.blockId, state.decisionDeadline, state.nodeVotes, dispatch])
 
-      const updatedRecords: Record<number, RoundRecord> = {
-        ...prev.roundRecords,
-        [targetRound]: {
-          ...(prev.roundRecords[targetRound] ?? {
-            round: targetRound,
-            notes: [],
-          }),
-          proposal,
-          justifyQC: proposal.justifyQC,
-          parent: proposal.parent,
-          notes: [
-            ...(prev.roundRecords[targetRound]?.notes ?? []),
-            `Leader proposed ${blockId} extending ${proposal.justifyQC.label}.`,
-          ],
-        },
-      }
+  useEffect(() => {
+    if (state.proposal) return
+    if (!state.proposeDeadline) return
+    const remaining = state.proposeDeadline - Date.now()
+    if (remaining <= 0) {
+      addToastWithTTL('Leader idle: no proposal in window → TC', 'warn')
+      dispatch(triggerTimeout('Leader idle: no proposal within window.'))
+      return
+    }
+    const timer = setTimeout(() => {
+      addToastWithTTL('Leader idle: no proposal in window → TC', 'warn')
+      dispatch(triggerTimeout('Leader idle: no proposal within window.'))
+    }, remaining)
+    return () => clearTimeout(timer)
+  }, [state.proposeDeadline, state.proposal?.blockId, dispatch])
 
-      return {
-        ...prev,
-        proposal,
-        lastVoteSafety: 'unknown',
-        roundRecords: updatedRecords,
-        nodeVotes: Object.fromEntries(
-          nodeCycle.map((label) => [label, 'pending' as VoteStatus]),
-        ),
-        decisionDeadline: Date.now() + DECISION_WINDOW_MS,
-        proposeDeadline: undefined,
-        log: trimLog(prev.log, {
-          title: `Leader proposes ${blockId}`,
-          detail: `Proposal extends ${proposal.justifyQC.label} into Round ${targetRound}.`,
-          tag: 'round',
-        }),
-      }
-    })
-    addToast(`Leader proposed ${blockId}`, 'info')
+  const handlePropose = () => {
+    dispatch(proposeBlock())
+    addToastWithTTL('Leader proposed block', 'info')
   }
 
-  const formQCFromVotes = () => {
-    setState((prev) => {
-      if (!prev.proposal) {
-        return trimOnly(prev, {
-          title: 'No proposal yet',
-          detail: 'Propose B0 before collecting votes.',
-          tag: 'info',
-        })
-      }
+  const handleCollectQC = () => dispatch(collectQCFromVotes())
 
-      const approvals =
-        Object.values(prev.nodeVotes).filter((v) => v === 'approve').length
-      if (approvals < VOTE_THRESHOLD) {
-        return trimOnly(prev, {
-          title: 'Not enough approvals',
-          detail: `Need ${VOTE_THRESHOLD} approvals; currently ${approvals}.`,
-          tag: 'info',
-        })
-      }
-
-      return produceQCFromVotes(prev, prev.nodeVotes)
-    })
+  const handleTimeout = (reason?: string) => {
+    dispatch(triggerTimeout(reason))
+    addToastWithTTL(reason ?? 'Timeout collected', 'warn')
   }
 
-  const triggerTimeout = () => {
-    markTimeout()
-  }
-
-  const ignoreStaleMessage = () => {
-    setState((prev) => ({
-      ...prev,
-      staleMessagesIgnored: prev.staleMessagesIgnored + 1,
-      log: trimLog(prev.log, {
-        title: 'Stale message ignored',
-        detail: `Message from Round ${Math.max(
-          0,
-          prev.currentRound - 1,
-        )} dropped; currentRound=${prev.currentRound}.`,
-        tag: 'ignored',
-      }),
-    }))
-  }
-
-  const setSelectedRound = (round: number, openModal?: boolean) =>
-    setState((prev) => ({
-      ...prev,
-      selectedRound: round,
-      modalRound: openModal ? round : prev.modalRound,
-    }))
-
-  const reset = () => setState(initialState)
+  const handleIgnore = () => dispatch(ignoreStaleMessage())
+  const handleReset = () => dispatch(resetState())
+  const handleVote = (label: string, choice: VoteStatus) => dispatch(recordVote({ label, choice }))
 
   const invariants = useMemo(() => {
     const labelForStatus: Record<InvariantStatus, string> = {
@@ -358,7 +94,6 @@ function App() {
       warn: 'Pending',
       fail: 'Violated',
     }
-
     const statuses: {
       id: number
       title: string
@@ -440,8 +175,7 @@ function App() {
         status: state.committedBlocks.length === 0 ? 'ok' : 'fail',
       },
     ]
-
-    return statuses.map((s) => ({ ...s, label: labelForStatus[s.status] }))
+    return statuses.map((s) => ({ ...s, label: labelForStatus[s.status as keyof typeof labelForStatus] }))
   }, [
     state.roundRegressed,
     state.highQCRegressed,
@@ -555,15 +289,17 @@ function App() {
                 selectedLeader={selectedLeader}
                 approvalsCount={approvalsCount}
                 activeProposalRound={state.proposal?.round}
-                onSelectRound={setSelectedRound}
-                onPropose={proposeBlock}
-                onCollectQC={formQCFromVotes}
-                onTimeout={triggerTimeout}
-                onIgnore={ignoreStaleMessage}
-                onReset={reset}
+                onSelectRound={(round, openModal) =>
+                  dispatch(setSelectedRound({ round, openModal }))
+                }
+                onPropose={handlePropose}
+                onCollectQC={handleCollectQC}
+                onTimeout={() => handleTimeout(undefined)}
+                onIgnore={handleIgnore}
+                onReset={handleReset}
                 onVote={handleVote}
                 nodeVotes={state.nodeVotes}
-                logEntries={state.log}
+                logEntries={state.log as LogEntry[]}
               />
             }
           />
@@ -571,119 +307,17 @@ function App() {
         </Routes>
       </main>
 
-      <Toaster toasts={toasts} />
+      <Toaster toasts={state.toasts} />
 
       {modalRecord && (
         <RoundModal
           record={modalRecord}
           leader={modalLeader ?? ''}
-          onClose={() => setState((p) => ({ ...p, modalRound: null }))}
+          onClose={() => dispatch(setModalRound(null))}
         />
       )}
     </div>
   )
-}
-
-function produceQCFromVotes(
-  prev: NodeState,
-  votes: Record<string, VoteStatus>,
-): NodeState {
-  if (!prev.proposal) return prev
-
-  const safeToVote =
-    prev.proposal.justifyQC.round > prev.lockedRound &&
-    prev.lockedRound <= prev.highQC.round
-
-  if (!safeToVote) {
-    return trimOnly(prev, {
-      title: 'Vote blocked',
-      detail: 'Safety-to-vote rule refused this proposal.',
-      tag: 'safety',
-    })
-  }
-
-  const roundKey = prev.proposal.round
-  const existing = prev.certifiedByRound[roundKey]
-  const conflictDetected =
-    (existing && existing !== prev.proposal.blockId) || prev.hasConflictingQC
-
-  const qc: Certificate = {
-    round: roundKey,
-    type: 'QC',
-    formedBy: 'votes',
-    block: prev.proposal.blockId,
-    label: `QC(${prev.proposal.blockId})`,
-  }
-
-  const nextRound = Math.min(Math.max(prev.currentRound, roundKey + 1), 5)
-  const roundRegressed = prev.roundRegressed || nextRound < prev.currentRound
-  const highQCRegressed = prev.highQCRegressed || qc.round < prev.highQC.round
-
-  const nextLog = trimLog(
-    conflictDetected
-      ? trimLog(prev.log, {
-          title: 'Conflicting QC avoided',
-          detail: 'Duplicate certification attempt was ignored.',
-          tag: 'safety',
-        })
-      : prev.log,
-    {
-      title: `QC formed for ${prev.proposal.blockId}`,
-      detail: `2f+1 votes certify Round ${roundKey} and advance to Round ${nextRound}.`,
-      tag: 'round',
-    },
-  )
-
-  const updatedRecords: Record<number, RoundRecord> = {
-    ...prev.roundRecords,
-    [roundKey]: {
-      ...(prev.roundRecords[roundKey] ?? { round: roundKey, notes: [] }),
-      proposal: prev.proposal,
-      qc,
-      justifyQC: prev.proposal.justifyQC,
-      parent: prev.proposal.parent,
-      notes: [
-        ...(prev.roundRecords[roundKey]?.notes ?? []),
-        `QC formed via votes for ${prev.proposal.blockId}.`,
-      ],
-    },
-  }
-
-  if (!updatedRecords[nextRound]) {
-    updatedRecords[nextRound] = {
-      round: nextRound,
-      justifyQC: qc,
-      parent: prev.proposal.blockId,
-      notes: [`Entered Round ${nextRound} via ${qc.label}.`],
-    }
-  }
-
-  return {
-    ...prev,
-    highQC: qc,
-    highQCRegressed,
-    currentRound: nextRound,
-    roundRegressed,
-    roundAdvanced: true,
-    certifiedByRound: { ...prev.certifiedByRound, [roundKey]: qc.block! },
-    hasConflictingQC: conflictDetected,
-    lastVoteSafety: 'safe',
-    proposal: { ...prev.proposal, justifyQC: qc },
-    nodeVotes: votes,
-    decisionDeadline: undefined,
-    proposeDeadline:
-      nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined,
-    roundRecords: updatedRecords,
-    selectedRound: Math.min(nextRound, 5),
-    log: nextLog,
-  }
-}
-
-function trimOnly(prev: NodeState, entry: LogEntry): NodeState {
-  return {
-    ...prev,
-    log: trimLog(prev.log, entry),
-  }
 }
 
 export default App
