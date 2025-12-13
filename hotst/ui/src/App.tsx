@@ -1,46 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-
-type CertificateKind = 'QC' | 'TC'
-
-type Certificate = {
-  round: number
-  type: CertificateKind
-  formedBy: 'votes' | 'timeouts'
-  block?: string
-  label: string
-}
-
-type Proposal = {
-  blockId: string
-  round: number
-  parent: string
-  justifyQC: Certificate
-}
-
-type LogEntry = {
-  title: string
-  detail: string
-  tag?: 'safety' | 'info' | 'ignored' | 'round'
-}
-
-type Toast = {
-  id: number
-  message: string
-  tone: 'success' | 'warn' | 'error' | 'info'
-}
-
-type RoundRecord = {
-  round: number
-  proposal?: Proposal
-  qc?: Certificate
-  tc?: Certificate
-  justifyQC?: Certificate
-  parent?: string
-  notes: string[]
-}
-
-type VoteStatus = 'pending' | 'approve' | 'deny' | 'ignored'
+import { Hero } from './components/Hero'
+import { ReplicaStateCard } from './components/ReplicaStateCard'
+import { RoundControlsCard } from './components/RoundControlsCard'
+import { DataStructuresCard } from './components/DataStructuresCard'
+import { ProposalCard } from './components/ProposalCard'
+import { InvariantGrid } from './components/InvariantGrid'
+import { RoundFocusCard } from './components/RoundFocusCard'
+import { NodeCluster } from './components/NodeCluster'
+import { RoundModal } from './components/RoundModal'
+import { Toaster } from './components/Toaster'
+import {
+  DECISION_WINDOW_MS,
+  PROPOSE_WINDOW_MS,
+  VOTE_THRESHOLD,
+  genesisQC,
+  initialRoundRecords,
+  leaderForRound,
+  nodeCycle,
+} from './constants'
+import type {
+  Certificate,
+  LogEntry,
+  Proposal,
+  RoundRecord,
+  Toast,
+  VoteStatus,
+} from './types'
 
 type NodeState = {
   currentRound: number
@@ -67,36 +53,6 @@ type NodeState = {
 }
 
 type InvariantStatus = 'ok' | 'warn' | 'fail'
-
-const genesisQC: Certificate = {
-  round: 0,
-  type: 'QC',
-  formedBy: 'votes',
-  block: 'Genesis',
-  label: 'QC(Genesis)',
-}
-
-const statusLabel: Record<InvariantStatus, string> = {
-  ok: 'Holds',
-  warn: 'Pending',
-  fail: 'Violated',
-}
-
-const nodeCycle = ['Leader', 'Replica 1', 'Replica 2', 'Replica 3', 'Replica 4'] as const
-const leaderForRound = (round: number) => nodeCycle[round % nodeCycle.length]
-const VOTE_THRESHOLD = 3
-const DECISION_WINDOW_MS = 30000
-const PROPOSE_WINDOW_MS = 30000
-
-const initialRoundRecords: Record<number, RoundRecord> = {
-  0: {
-    round: 0,
-    qc: genesisQC,
-    justifyQC: genesisQC,
-    parent: '⊥',
-    notes: ['Genesis QC anchors the chain.'],
-  },
-}
 
 const initialState: NodeState = {
   currentRound: 0,
@@ -133,6 +89,7 @@ const trimLog = (log: LogEntry[], entry: LogEntry) =>
 function App() {
   const [state, setState] = useState<NodeState>(initialState)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [now, setNow] = useState(Date.now())
 
   const addToast = (message: string, tone: Toast['tone'] = 'info') => {
     const id = Date.now() + Math.random()
@@ -295,6 +252,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.proposeDeadline, state.proposal?.blockId])
 
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
   const proposeBlock = () => {
     const targetRound = Math.min(state.currentRound, 5)
     const blockId = `B${targetRound}`
@@ -396,6 +358,12 @@ function App() {
   const reset = () => setState(initialState)
 
   const invariants = useMemo(() => {
+    const labelForStatus: Record<InvariantStatus, string> = {
+      ok: 'Holds',
+      warn: 'Pending',
+      fail: 'Violated',
+    }
+
     const statuses: {
       id: number
       title: string
@@ -478,7 +446,7 @@ function App() {
       },
     ]
 
-    return statuses
+    return statuses.map((s) => ({ ...s, label: labelForStatus[s.status] }))
   }, [
     state.roundRegressed,
     state.highQCRegressed,
@@ -554,354 +522,68 @@ function App() {
     (v) => v === 'approve',
   ).length
   const proposeRemaining = state.proposeDeadline
-    ? Math.max(0, Math.ceil((state.proposeDeadline - Date.now()) / 1000))
+    ? Math.max(0, Math.ceil((state.proposeDeadline - now) / 1000))
     : null
   const decisionRemaining = state.decisionDeadline
-    ? Math.max(0, Math.ceil((state.decisionDeadline - Date.now()) / 1000))
+    ? Math.max(0, Math.ceil((state.decisionDeadline - now) / 1000))
     : null
 
   return (
     <div className="page">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">HotStuff • Genesis → Round 5</p>
-          <h1>Genesis Round Explorer</h1>
-          <p className="lede">
-            Walk through the first HotStuff round, see how QCs move, and watch
-            the invariants that keep replicas safe before any locks or commits
-            exist.
-          </p>
-          <div className="chips">
-            <span className="chip">
-              currentRound <strong>{state.currentRound}</strong>
-            </span>
-            <span className="chip">
-              highQC <strong>{state.highQC.label}</strong>
-            </span>
-            <span className="chip">
-              lockedRound <strong>{state.lockedRound}</strong>
-            </span>
-          </div>
-          <div className="timer-strip">
-            <div>
-              <p className="stat-label">Proposal window</p>
-              <p className="stat-value">
-                {state.proposal
-                  ? 'Proposed'
-                  : proposeRemaining !== null
-                    ? `${proposeRemaining}s`
-                    : '—'}
-              </p>
-              <p className="mini-note">If leader stays idle, TC will form.</p>
-            </div>
-            <div>
-              <p className="stat-label">Vote window</p>
-              <p className="stat-value">
-                {state.proposal && decisionRemaining !== null
-                  ? `${decisionRemaining}s`
-                  : '—'}
-              </p>
-              <p className="mini-note">After expiry, pending votes become ignored.</p>
-            </div>
-          </div>
-        </div>
-        <div className="stage-card">
-          <p className="stage-label">Minimal model</p>
-          <div className="rail chain-compact">
-            {[0, 1, 2, 3, 4, 5].map((r, idx) => (
-              <button
-                key={r}
-                className="rail-item"
-                onClick={() => setSelectedRound(r, true)}
-              >
-                <div className={`rail-dot ${state.currentRound >= r ? 'active' : ''}`} />
-                <p className="rail-caption">{r === 0 ? 'Genesis / R0' : `Round ${r}`}</p>
-                <p className="rail-leader">Leader: {leaderForRound(r)}</p>
-                {idx < 5 && <div className="rail-line short" />}
-              </button>
-            ))}
-          </div>
-          <p className="rail-note">
-            QC(Genesis) anchors Round 0. A QC(B0) or TC(0) is required to enter
-            Round 1; the chain is shown through Round 5.
-          </p>
-        </div>
-      </header>
+      <Hero
+        currentRound={state.currentRound}
+        highQCLabel={state.highQC.label}
+        lockedRound={state.lockedRound}
+        proposeRemaining={state.proposal ? null : proposeRemaining}
+        decisionRemaining={state.proposal ? decisionRemaining : null}
+        onSelectRound={setSelectedRound}
+      />
 
       <section className="state-grid">
-        <div className="card">
-          <div className="card-heading">
-            <p className="label">Replica state</p>
-            <button className="ghost" onClick={reset}>
-              Reset
-            </button>
-          </div>
-          <div className="stats">
-            <div>
-              <p className="stat-label">currentRound</p>
-              <p className="stat-value">{state.currentRound}</p>
-            </div>
-            <div>
-              <p className="stat-label">highQC</p>
-              <p className="stat-value">{state.highQC.label}</p>
-            </div>
-            <div>
-              <p className="stat-label">lockedRound</p>
-              <p className="stat-value">{state.lockedRound}</p>
-            </div>
-            <div>
-              <p className="stat-label">locks</p>
-              <p className="stat-value">
-                {state.lockedBlock ?? 'none'}
-              </p>
-            </div>
-          </div>
-          <p className="note">
-            Locks are intentionally absent in the first round—only QC(Genesis)
-            exists, so every replica remains flexible.
-          </p>
-        </div>
+        <ReplicaStateCard
+          currentRound={state.currentRound}
+          highQCLabel={state.highQC.label}
+          lockedRound={state.lockedRound}
+          lockedBlock={state.lockedBlock}
+          onReset={reset}
+        />
 
-        <div className="card actions">
-          <div className="card-heading">
-            <p className="label">Round controls (0-5)</p>
-            <p className="sub">Drive the state machine by hand.</p>
-          </div>
-          <div className="action-buttons">
-            <button onClick={proposeBlock}>
-              Propose B{state.currentRound} (extends highQC)
-            </button>
-            <button onClick={formQCFromVotes}>
-              {`Collect 2f+1 votes → QC(${state.proposal?.blockId ?? `B${state.currentRound}`})`}
-            </button>
-            <button onClick={triggerTimeout}>
-              Timeouts → TC(R{state.currentRound})
-            </button>
-            <button onClick={ignoreStaleMessage}>
-              Ignore stale Round {Math.max(state.currentRound - 1, 0)} msg
-            </button>
-          </div>
-          <p className="note">
-            Every action re-checks the invariants. Votes are gated by
-            justifyQC.round &gt; lockedRound, and QCs cannot conflict.
-          </p>
-        </div>
+        <RoundControlsCard
+          currentRound={state.currentRound}
+          proposalId={state.proposal?.blockId}
+          onPropose={proposeBlock}
+          onCollectQC={formQCFromVotes}
+          onTimeout={triggerTimeout}
+          onIgnore={ignoreStaleMessage}
+        />
 
-        <div className="card">
-          <div className="card-heading">
-            <p className="label">Data structures</p>
-            <p className="sub">Inspect the live JSON backing this view.</p>
-          </div>
-          <pre className="json-view">{dataSnapshot}</pre>
-        </div>
+        <DataStructuresCard dataSnapshot={dataSnapshot} />
 
-        <div className="card">
-          <div className="card-heading">
-            <p className="label">Proposal</p>
-            <p className="sub">What the leader is broadcasting in Round 0.</p>
-          </div>
-          {state.proposal ? (
-            <div className="proposal">
-              <div>
-                <p className="stat-label">Block</p>
-                <p className="stat-value">{state.proposal.blockId}</p>
-              </div>
-              <div>
-                <p className="stat-label">Parent</p>
-                <p className="stat-value">{state.proposal.parent}</p>
-              </div>
-              <div>
-                <p className="stat-label">justifyQC</p>
-                <p className="stat-value">{state.proposal.justifyQC.label}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="empty">No proposal yet. Click “Propose B0”.</div>
-          )}
-        </div>
+        <ProposalCard proposal={state.proposal} />
       </section>
 
-      <section>
-        <div className="section-heading">
-          <h2>First-round invariants</h2>
-          <p className="sub">
-            These must hold from genesis through Round 0 and when entering Round
-            1—no future assumptions.
-          </p>
-        </div>
-        <div className="invariant-grid">
-          {invariants.map((inv) => (
-            <div
-              key={inv.id}
-              className={`invariant ${inv.status}`}
-            >
-              <div className="invariant-top">
-                <p className="label">Invariant {inv.id}</p>
-                <span className={`pill ${inv.status}`}>
-                  {statusLabel[inv.status]}
-                </span>
-              </div>
-              <h3>{inv.title}</h3>
-              <p className="detail">{inv.detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <InvariantGrid invariants={invariants} />
 
       <section className="node-row">
-        <div className="card round-detail">
-          <div className="card-heading">
-            <p className="label">Round focus</p>
-            <p className="sub">Click the chain to inspect how we got here.</p>
-          </div>
-          <div className="round-summary">
-            <p className="label">Round {selectedRecord.round}</p>
-            <h3>
-              {selectedRecord.qc
-                ? 'Certified via QC'
-                : selectedRecord.tc
-                  ? 'Timeout collected'
-                  : selectedRecord.proposal
-                    ? 'Proposed'
-                    : 'Not visited yet'}
-            </h3>
-            <p className="detail">
-              {selectedRecord.proposal
-                ? `Block ${selectedRecord.proposal.blockId} extends ${selectedRecord.proposal.justifyQC.label}.`
-                : 'No proposal observed for this round.'}
-            </p>
-            {state.proposal && state.proposal.round === selectedRecord.round && (
-              <div className="vote-strip">
-                <span>
-                  Approvals {approvalsCount}/{VOTE_THRESHOLD}
-                </span>
-                {state.decisionDeadline && (
-                  <span>
-                    Decision window:{' '}
-                    {Math.max(
-                      0,
-                      Math.ceil((state.decisionDeadline - Date.now()) / 1000),
-                    )}{' '}
-                    s
-                  </span>
-                )}
-              </div>
-            )}
-            <div className="round-grid">
-              <div>
-                <p className="stat-label">Block</p>
-                <p className="stat-value">
-                  {selectedRecord.proposal?.blockId ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">Parent</p>
-                <p className="stat-value">
-                  {selectedRecord.parent ?? selectedRecord.proposal?.parent ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">justifyQC</p>
-                <p className="stat-value">
-                  {selectedRecord.justifyQC?.label ??
-                    selectedRecord.proposal?.justifyQC.label ??
-                    '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">QC</p>
-                <p className="stat-value">
-                  {selectedRecord.qc?.label ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">TC</p>
-                <p className="stat-value">
-                  {selectedRecord.tc?.label ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">Leader</p>
-                <p className="stat-value">{selectedLeader}</p>
-              </div>
-            </div>
-            <div className="notes-list">
-              {(selectedRecord.notes ?? []).map((note, idx) => (
-                <div key={`${note}-${idx}`} className="note-chip">
-                  {note}
-                </div>
-              ))}
-            </div>
-            <pre className="json-view small">
-              {JSON.stringify(selectedRecord, null, 2)}
-            </pre>
-          </div>
-        </div>
+        <RoundFocusCard
+          record={selectedRecord}
+          leader={selectedLeader}
+          approvals={approvalsCount}
+          decisionRemaining={
+            state.proposal && state.proposal.round === selectedRecord.round
+              ? decisionRemaining
+              : null
+          }
+        />
 
-        <div className="card node-cluster">
-          <div className="card-heading">
-            <p className="label">Nodes</p>
-            <p className="sub">Leader + 4 replicas linked to the selected round.</p>
-          </div>
-          <div className="node-grid">
-            {nodeCycle.map((label) => {
-              const isLeader = label === selectedLeader
-              const vote = state.nodeVotes[label] ?? 'pending'
-              const canVote =
-                Boolean(state.proposal) && vote === 'pending' && selectedRecord.round === state.proposal?.round
-              return (
-                <div key={label} className={`node-card ${isLeader ? 'leader' : ''}`}>
-                  <div className="node-head">
-                    <p className="label">{label}</p>
-                    {isLeader && <span className="pill ok tiny">Leader</span>}
-                  </div>
-                  <h4>Round {selectedRecord.round}</h4>
-                  <p className="node-line">
-                    Proposal: {selectedRecord.proposal?.blockId ?? '—'}
-                  </p>
-                  <p className="node-line">
-                    QC: {selectedRecord.qc?.label ?? '—'}
-                  </p>
-                  <p className="node-line">
-                    TC: {selectedRecord.tc?.label ?? '—'}
-                  </p>
-                  <p className={`vote-pill ${vote}`}>Vote: {vote}</p>
-                  <div className="node-actions">
-                    <button
-                      disabled={!canVote}
-                      onClick={() => handleVote(label, 'approve')}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      disabled={!canVote}
-                      onClick={() => handleVote(label, 'deny')}
-                    >
-                      Deny
-                    </button>
-                    <button
-                      className="ghost"
-                      disabled={!canVote}
-                      onClick={() => handleVote(label, 'ignored')}
-                    >
-                      Ignore
-                    </button>
-                  </div>
-                  <button
-                    className="ghost full"
-                    onClick={() => setSelectedRound(selectedRecord.round, true)}
-                  >
-                    View round modal
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-          <p className="note">
-            Nodes mirror the selected round. Click “View round modal” to see full
-            justification history and data structures.
-          </p>
-        </div>
+        <NodeCluster
+          record={selectedRecord}
+          selectedLeader={selectedLeader}
+          nodeVotes={state.nodeVotes}
+          activeProposalRound={state.proposal?.round}
+          onVote={handleVote}
+          onOpenModal={(round) => setSelectedRound(round, true)}
+        />
       </section>
 
       <section className="log">
@@ -926,78 +608,14 @@ function App() {
         </div>
       </section>
 
-      {toasts.length > 0 && (
-        <div className="toaster">
-          {toasts.map((t) => (
-            <div key={t.id} className={`toast ${t.tone}`}>
-              <span className="toast-dot" />
-              <p className="toast-text">{t.message}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <Toaster toasts={toasts} />
 
       {modalRecord && (
-        <div className="modal-backdrop" onClick={() => setState((p) => ({ ...p, modalRound: null }))}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <p className="label">Round detail</p>
-                <h3>Round {modalRecord.round}</h3>
-              </div>
-              <button
-                className="ghost"
-                onClick={() => setState((p) => ({ ...p, modalRound: null }))}
-              >
-                Close
-              </button>
-            </div>
-            <div className="round-grid">
-              <div>
-                <p className="stat-label">Block</p>
-                <p className="stat-value">
-                  {modalRecord.proposal?.blockId ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">Parent</p>
-                <p className="stat-value">
-                  {modalRecord.parent ?? modalRecord.proposal?.parent ?? '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">justifyQC</p>
-                <p className="stat-value">
-                  {modalRecord.justifyQC?.label ??
-                    modalRecord.proposal?.justifyQC.label ??
-                    '—'}
-                </p>
-              </div>
-              <div>
-                <p className="stat-label">QC</p>
-                <p className="stat-value">{modalRecord.qc?.label ?? '—'}</p>
-              </div>
-              <div>
-                <p className="stat-label">TC</p>
-                <p className="stat-value">{modalRecord.tc?.label ?? '—'}</p>
-              </div>
-              <div>
-                <p className="stat-label">Leader</p>
-                <p className="stat-value">{modalLeader}</p>
-              </div>
-            </div>
-            <div className="notes-list">
-              {(modalRecord.notes ?? []).map((note, idx) => (
-                <div key={`${note}-${idx}`} className="note-chip">
-                  {note}
-                </div>
-              ))}
-            </div>
-            <pre className="json-view small">
-              {JSON.stringify(modalRecord, null, 2)}
-            </pre>
-          </div>
-        </div>
+        <RoundModal
+          record={modalRecord}
+          leader={modalLeader ?? ''}
+          onClose={() => setState((p) => ({ ...p, modalRound: null }))}
+        />
       )}
     </div>
   )
