@@ -1,0 +1,12 @@
+# proposal → QC → lock → safety
+
+1️⃣ Proposal (leader action)
+
+2️⃣ QC check (replica gate)
+    - lockedRound = “I refuse to go below this”
+    - justifyQC = “Here is proof the system already moved forward”
+
+3️⃣ Vote → QC formation (network effect)
+
+
+

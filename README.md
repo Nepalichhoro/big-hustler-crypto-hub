@@ -6,3 +6,9 @@ What NewView actually coordinates
         1) Which round are we moving to?
         2) Which certified block is the safest anchor?
         Nothing else.
+
+Clean mental model (use this)
+- NewView is a quorum-based “reset of leadership context,” not a state reset.
+
+Or even shorter:
+- NewView re-aligns clocks and anchors — not data.
