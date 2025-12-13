@@ -154,6 +154,7 @@ function simulateThreeChainCommit() {
     lockedRound: 0,
   }));
 
+  console.log(nodes)
   // GENESIS (round 0)
   console.log("Creating GENESIS block (round 0).");
   const genesis = createBlock(0, null, null);
