@@ -126,6 +126,12 @@ h1 {
   color: #d9e1ff;
 }
 
+.rail-leader {
+  margin: 0;
+  font-size: 11px;
+  color: #9fb5ff;
+}
+
 .state-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -258,13 +264,6 @@ button:active {
   max-height: 220px;
 }
 
-.chain-row {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 14px;
-  align-items: start;
-}
-
 .round-detail h3 {
   margin: 4px 0 8px;
 }
@@ -349,6 +348,54 @@ button:active {
   margin: 0;
   color: #9fb5ff;
   font-size: 13px;
+}
+
+.node-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.node-card {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.node-card.leader {
+  border-color: rgba(124, 200, 255, 0.5);
+  box-shadow: 0 12px 30px rgba(124, 200, 255, 0.16);
+}
+
+.node-line {
+  margin: 4px 0;
+  color: #c8d6ff;
+  font-size: 14px;
+}
+
+.ghost.full {
+  width: 100%;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.tiny {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .section-heading {
@@ -498,7 +545,7 @@ button:active {
     grid-template-columns: 1fr;
   }
 
-  .chain-row {
+  .node-row {
     grid-template-columns: 1fr;
   }
 

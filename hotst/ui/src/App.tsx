@@ -110,6 +110,9 @@ const statusLabel: Record<InvariantStatus, string> = {
   fail: 'Violated',
 }
 
+const nodeCycle = ['Leader', 'Replica 1', 'Replica 2', 'Replica 3', 'Replica 4'] as const
+const leaderForRound = (round: number) => nodeCycle[round % nodeCycle.length]
+
 function App() {
   const [state, setState] = useState<NodeState>(initialState)
 
@@ -472,8 +475,7 @@ function App() {
       round: state.selectedRound,
       notes: ['Round not yet visited.'],
     } as RoundRecord)
-
-  const roundList = Array.from({ length: 6 }).map((_, idx) => idx)
+  const selectedLeader = leaderForRound(selectedRecord.round)
 
   const modalRecord =
     state.modalRound !== null
@@ -483,6 +485,7 @@ function App() {
           notes: ['Round not yet visited.'],
         } as RoundRecord)
       : null
+  const modalLeader = modalRecord ? leaderForRound(modalRecord.round) : null
 
   return (
     <div className="page">
@@ -518,6 +521,7 @@ function App() {
               >
                 <div className={`rail-dot ${state.currentRound >= r ? 'active' : ''}`} />
                 <p className="rail-caption">{r === 0 ? 'Genesis / R0' : `Round ${r}`}</p>
+                <p className="rail-leader">Leader: {leaderForRound(r)}</p>
                 {idx < 5 && <div className="rail-line short" />}
               </button>
             ))}
@@ -649,7 +653,7 @@ function App() {
         </div>
       </section>
 
-      <section className="chain-row">
+      <section className="node-row">
         <div className="card round-detail">
           <div className="card-heading">
             <p className="label">Round focus</p>
@@ -704,6 +708,10 @@ function App() {
                   {selectedRecord.tc?.label ?? '—'}
                 </p>
               </div>
+              <div>
+                <p className="stat-label">Leader</p>
+                <p className="stat-value">{selectedLeader}</p>
+              </div>
             </div>
             <div className="notes-list">
               {(selectedRecord.notes ?? []).map((note, idx) => (
@@ -718,49 +726,43 @@ function App() {
           </div>
         </div>
 
-        <div className="card round-chain">
+        <div className="card node-cluster">
           <div className="card-heading">
-            <p className="label">Blockchain round chain</p>
-            <p className="sub">Genesis → Round 5</p>
+            <p className="label">Nodes</p>
+            <p className="sub">Leader + 4 replicas linked to the selected round.</p>
           </div>
-          <div className="round-items">
-            {roundList.map((round) => {
-              const reached = Boolean(
-                state.roundRecords[round]?.proposal ||
-                  state.roundRecords[round]?.qc ||
-                  state.roundRecords[round]?.tc ||
-                  round === 0,
-              )
+          <div className="node-grid">
+            {nodeCycle.map((label) => {
+              const isLeader = label === selectedLeader
               return (
-                <button
-                  key={round}
-                  className={`round-item ${
-                state.selectedRound === round ? 'active' : ''
-              } ${reached ? 'reached' : ''}`}
-                  onClick={() => setSelectedRound(round, true)}
-                >
-                  <span className="round-circle">{round}</span>
-                  <div className="round-meta">
-                    <p className="round-title">
-                      {round === 0 ? 'Genesis / Round 0' : `Round ${round}`}
-                    </p>
-                    <p className="round-desc">
-                      {state.roundRecords[round]?.qc
-                        ? state.roundRecords[round]?.qc?.label
-                        : state.roundRecords[round]?.tc
-                          ? state.roundRecords[round]?.tc?.label
-                          : state.roundRecords[round]?.proposal?.blockId
-                            ? `Proposal ${state.roundRecords[round]?.proposal?.blockId}`
-                            : 'Not reached yet'}
-                    </p>
+                <div key={label} className={`node-card ${isLeader ? 'leader' : ''}`}>
+                  <div className="node-head">
+                    <p className="label">{label}</p>
+                    {isLeader && <span className="pill ok tiny">Leader</span>}
                   </div>
-                </button>
+                  <h4>Round {selectedRecord.round}</h4>
+                  <p className="node-line">
+                    Proposal: {selectedRecord.proposal?.blockId ?? '—'}
+                  </p>
+                  <p className="node-line">
+                    QC: {selectedRecord.qc?.label ?? '—'}
+                  </p>
+                  <p className="node-line">
+                    TC: {selectedRecord.tc?.label ?? '—'}
+                  </p>
+                  <button
+                    className="ghost full"
+                    onClick={() => setSelectedRound(selectedRecord.round, true)}
+                  >
+                    View round modal
+                  </button>
+                </div>
               )
             })}
           </div>
           <p className="note">
-            Click a round to see the chain of justifications (proposal →
-            QC/TC) that delivered it. Up to Round 5 is represented here.
+            Nodes mirror the selected round. Click “View round modal” to see full
+            justification history and data structures.
           </p>
         </div>
       </section>
@@ -830,6 +832,10 @@ function App() {
               <div>
                 <p className="stat-label">TC</p>
                 <p className="stat-value">{modalRecord.tc?.label ?? '—'}</p>
+              </div>
+              <div>
+                <p className="stat-label">Leader</p>
+                <p className="stat-value">{modalLeader}</p>
               </div>
             </div>
             <div className="notes-list">
