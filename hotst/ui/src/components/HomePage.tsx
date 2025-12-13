@@ -15,6 +15,7 @@ type Props = {
   proposal?: Proposal
   proposeRemaining: number | null
   decisionRemaining: number | null
+  newViewRemaining: number | null
   dataSnapshot: string
   selectedRecord: RoundRecord
   selectedLeader: string
@@ -53,6 +54,7 @@ export function HomePage({
   onReset,
   onVote,
   logEntries,
+  newViewRemaining,
 }: Props) {
   return (
     <>
@@ -105,6 +107,7 @@ export function HomePage({
           selectedLeader={selectedLeader}
           nodeVotes={nodeVotes}
           activeProposalRound={activeProposalRound}
+          newViewRemaining={newViewRemaining}
           decisionRemaining={decisionRemaining}
           onVote={onVote}
           onOpenModal={(round) => onSelectRound(round, true)}

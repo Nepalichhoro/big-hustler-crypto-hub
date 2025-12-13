@@ -28,10 +28,14 @@ function App() {
   const state = useSelector((s: RootState) => s.hotstuff)
   const [now, setNow] = useState(Date.now())
 
-  const addToastWithTTL = (message: string, tone: 'success' | 'warn' | 'error' | 'info' = 'info') => {
+  const addToastWithTTL = (
+    message: string,
+    tone: 'success' | 'warn' | 'error' | 'info' | 'newview' = 'info',
+    ttlMs = 3600,
+  ) => {
     const id = Date.now() + Math.random()
     dispatch(addToast({ id, message, tone }))
-    setTimeout(() => dispatch(removeToast(id)), 3600)
+    setTimeout(() => dispatch(removeToast(id)), ttlMs)
   }
 
   useEffect(() => {
@@ -61,12 +65,20 @@ function App() {
     if (!state.proposeDeadline) return
     const remaining = state.proposeDeadline - Date.now()
     if (remaining <= 0) {
-      addToastWithTTL('Leader idle: no proposal in NewView window → TC', 'warn')
+      addToastWithTTL(
+        'Replica 1 initiated NewView (timeouts) after leader idle',
+        'newview',
+        30000,
+      )
       dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
       return
     }
     const timer = setTimeout(() => {
-      addToastWithTTL('Leader idle: no proposal in NewView window → TC', 'warn')
+      addToastWithTTL(
+        'Replica 1 initiated NewView (timeouts) after leader idle',
+        'newview',
+        30000,
+      )
       dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
     }, remaining)
     return () => clearTimeout(timer)
@@ -256,6 +268,7 @@ function App() {
   const decisionRemaining = state.decisionDeadline
     ? Math.max(0, Math.ceil((state.decisionDeadline - now) / 1000))
     : null
+  const newViewRemaining = state.proposal ? null : proposeRemaining
 
   return (
     <div className="app-shell">
@@ -289,6 +302,7 @@ function App() {
                 selectedLeader={selectedLeader}
                 approvalsCount={approvalsCount}
                 activeProposalRound={state.proposal?.round}
+                newViewRemaining={newViewRemaining}
                 onSelectRound={(round, openModal) =>
                   dispatch(setSelectedRound({ round, openModal }))
                 }

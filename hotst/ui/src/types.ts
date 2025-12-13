@@ -36,5 +36,5 @@ export type VoteStatus = 'pending' | 'approve' | 'deny' | 'ignored'
 export type Toast = {
   id: number
   message: string
-  tone: 'success' | 'warn' | 'error' | 'info'
+  tone: 'success' | 'warn' | 'error' | 'info' | 'newview'
 }
