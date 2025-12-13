@@ -8,7 +8,6 @@ type Props = {
   activeProposalRound?: number
   newViewRemaining: number | null
   decisionRemaining: number | null
-  onReplicaTimeout: (initiator: string) => void
   onVote: (label: string, choice: VoteStatus) => void
   onOpenModal: (round: number) => void
 }
@@ -20,7 +19,6 @@ export function NodeCluster({
   activeProposalRound,
   newViewRemaining,
   decisionRemaining,
-  onReplicaTimeout,
   onVote,
   onOpenModal,
 }: Props) {
@@ -56,14 +54,6 @@ export function NodeCluster({
                 <p className="node-line">
                   NewView window: {newViewRemaining !== null ? `${newViewRemaining}s` : '—'}
                 </p>
-              )}
-              {!record.proposal && (
-                <button
-                  className="ghost full"
-                  onClick={() => onReplicaTimeout(label)}
-                >
-                  Replica timeout → NewView
-                </button>
               )}
               <p className={`vote-pill ${vote}`}>Vote: {vote}</p>
               <div className="node-actions">

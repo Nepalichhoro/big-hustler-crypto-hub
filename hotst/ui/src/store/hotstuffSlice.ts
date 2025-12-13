@@ -36,6 +36,7 @@ export type NodeState = {
   roundRecords: Record<number, RoundRecord>
   selectedRound: number
   nodeVotes: Record<string, VoteStatus>
+  timeoutSenders: string[]
   decisionDeadline?: number
   proposeDeadline?: number
   modalRound: number | null
@@ -44,7 +45,7 @@ export type NodeState = {
   toasts: Toast[]
 }
 
-const initialState: NodeState = {
+const createInitialState = (): NodeState => ({
   currentRound: 0,
   lockedRound: -1,
   lockedBlock: null,
@@ -60,6 +61,7 @@ const initialState: NodeState = {
   roundRecords: initialRoundRecords,
   selectedRound: 0,
   nodeVotes: {},
+  timeoutSenders: [],
   decisionDeadline: undefined,
   proposeDeadline: Date.now() + PROPOSE_WINDOW_MS,
   modalRound: null,
@@ -72,7 +74,9 @@ const initialState: NodeState = {
   ],
   lastVoteSafety: 'unknown',
   toasts: [],
-}
+})
+
+const initialState: NodeState = createInitialState()
 
 const trimLog = (log: LogEntry[], entry: LogEntry) =>
   [entry, ...log].slice(0, 18)
@@ -160,6 +164,64 @@ function produceQCFromVotes(draft: NodeState, votes: Record<string, VoteStatus>)
   draft.selectedRound = Math.min(nextRound, 5)
 }
 
+function applyTimeout(state: NodeState, reason: string) {
+  const tcRound = state.currentRound
+  const tc: Certificate = {
+    round: tcRound,
+    type: 'TC',
+    formedBy: 'timeouts',
+    label: `TC(R${tcRound})`,
+  }
+  const nextRound = Math.min(state.currentRound + 1, 5)
+  state.roundRegressed = state.roundRegressed || nextRound < state.currentRound
+  state.highQCRegressed = state.highQCRegressed || tc.round < state.highQC.round
+  const nodeVotes = Object.keys(state.nodeVotes).length
+    ? Object.fromEntries(
+        Object.entries(state.nodeVotes).map(([k, v]) => [
+          k,
+          v === 'pending' ? 'ignored' : v,
+        ]),
+      )
+    : state.nodeVotes
+  state.highQC = tc.round >= state.highQC.round ? tc : state.highQC
+  state.timeoutIssued = true
+  state.currentRound = nextRound
+  state.roundAdvanced = true
+  state.roundRegressed = state.roundRegressed
+  state.proposal = undefined
+  state.lastVoteSafety = 'unknown'
+  state.nodeVotes = nodeVotes
+  state.decisionDeadline = undefined
+  state.proposeDeadline = nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined
+  state.timeoutSenders = []
+  state.roundRecords = (() => {
+    const records = { ...state.roundRecords }
+    records[tcRound] = {
+      ...(records[tcRound] ?? { round: tcRound, notes: [] }),
+      tc,
+      notes: [
+        ...(records[tcRound]?.notes ?? []),
+        `TC collected in Round ${tcRound}.`,
+      ],
+    }
+    if (!records[nextRound]) {
+      records[nextRound] = {
+        round: nextRound,
+        justifyQC: tc,
+        parent: records[tcRound]?.proposal?.blockId,
+        notes: [`Entered Round ${nextRound} via ${tc.label}.`],
+      }
+    }
+    return records
+  })()
+  state.selectedRound = Math.min(nextRound, 5)
+  state.log = trimLog(state.log, {
+    title: 'Timeout collected',
+    detail: reason,
+    tag: 'round',
+  })
+}
+
 const hotstuffSlice = createSlice({
   name: 'hotstuff',
   initialState,
@@ -225,60 +287,21 @@ const hotstuffSlice = createSlice({
       const reason =
         action.payload ??
         'TC pushes replicas forward when QC is slow or leader idle.'
-      const tcRound = state.currentRound
-      const tc: Certificate = {
-        round: tcRound,
-        type: 'TC',
-        formedBy: 'timeouts',
-        label: `TC(R${tcRound})`,
-      }
-      const nextRound = Math.min(state.currentRound + 1, 5)
-      state.roundRegressed = state.roundRegressed || nextRound < state.currentRound
-      state.highQCRegressed = state.highQCRegressed || tc.round < state.highQC.round
-      const nodeVotes = Object.keys(state.nodeVotes).length
-        ? Object.fromEntries(
-            Object.entries(state.nodeVotes).map(([k, v]) => [
-              k,
-              v === 'pending' ? 'ignored' : v,
-            ]),
-          )
-        : state.nodeVotes
-      state.highQC = tc.round >= state.highQC.round ? tc : state.highQC
-      state.timeoutIssued = true
-      state.currentRound = nextRound
-      state.roundAdvanced = true
-      state.roundRegressed = state.roundRegressed
-      state.proposal = undefined
-      state.lastVoteSafety = 'unknown'
-      state.nodeVotes = nodeVotes
-      state.decisionDeadline = undefined
-      state.proposeDeadline = nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined
-      state.roundRecords = (() => {
-        const records = { ...state.roundRecords }
-        records[tcRound] = {
-          ...(records[tcRound] ?? { round: tcRound, notes: [] }),
-          tc,
-          notes: [
-            ...(records[tcRound]?.notes ?? []),
-            `TC collected in Round ${tcRound}.`,
-          ],
-        }
-        if (!records[nextRound]) {
-          records[nextRound] = {
-            round: nextRound,
-            justifyQC: tc,
-            parent: records[tcRound]?.proposal?.blockId,
-            notes: [`Entered Round ${nextRound} via ${tc.label}.`],
-          }
-        }
-        return records
-      })()
-      state.selectedRound = Math.min(nextRound, 5)
+      applyTimeout(state, reason)
+    },
+    replicaTimeout(state, action: PayloadAction<string>) {
+      if (state.proposal) return
+      const sender = action.payload
+      if (state.timeoutSenders.includes(sender)) return
+      state.timeoutSenders = [...state.timeoutSenders, sender]
       state.log = trimLog(state.log, {
-        title: 'Timeout collected',
-        detail: reason,
+        title: `${sender} sent Timeout`,
+        detail: `Timeout votes ${state.timeoutSenders.length}/${VOTE_THRESHOLD}.`,
         tag: 'round',
       })
+      if (state.timeoutSenders.length >= VOTE_THRESHOLD) {
+        applyTimeout(state, `${sender} initiated NewView with TC quorum`)
+      }
     },
     ignoreStaleMessage(state) {
       state.staleMessagesIgnored += 1
@@ -293,7 +316,7 @@ const hotstuffSlice = createSlice({
       state.modalRound = action.payload.openModal ? action.payload.round : state.modalRound
     },
     resetState() {
-      return initialState
+      return createInitialState()
     },
     recordVote(state, action: PayloadAction<{ label: string; choice: VoteStatus }>) {
       if (!state.proposal) {
@@ -334,16 +357,17 @@ const hotstuffSlice = createSlice({
     addToast(state, action: PayloadAction<Toast>) {
       state.toasts.push(action.payload)
     },
-    removeToast(state, action: PayloadAction<number>) {
-      state.toasts = state.toasts.filter((t) => t.id !== action.payload)
-    },
+  removeToast(state, action: PayloadAction<number>) {
+    state.toasts = state.toasts.filter((t) => t.id !== action.payload)
   },
+ },
 })
 
 export const {
   proposeBlock,
   collectQCFromVotes,
   triggerTimeout,
+  replicaTimeout,
   ignoreStaleMessage,
   setSelectedRound,
   resetState,

@@ -6,7 +6,7 @@ import { HomePage } from './components/HomePage'
 import { InvariantsPage } from './components/InvariantsPage'
 import { RoundModal } from './components/RoundModal'
 import { Toaster } from './components/Toaster'
-import { leaderForRound } from './constants'
+import { leaderForRound, nodeCycle } from './constants'
 import type { LogEntry, RoundRecord, VoteStatus } from './types'
 import {
   addToast,
@@ -19,6 +19,7 @@ import {
   setSelectedRound,
   triggerTimeout,
   removeToast,
+  replicaTimeout,
 } from './store/hotstuffSlice'
 import type { RootState, AppDispatch } from './store/store'
 import type { InvariantStatus } from './store/hotstuffSlice'
@@ -65,21 +66,23 @@ function App() {
     if (!state.proposeDeadline) return
     const remaining = state.proposeDeadline - Date.now()
     if (remaining <= 0) {
+      const senders = nodeCycle.slice(0, 3)
       addToastWithTTL(
-        'Replica 1 initiated NewView (timeouts) after leader idle',
+        `NewView auto: ${senders.join(', ')} timed out leader`,
         'newview',
         30000,
       )
-      dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
+      senders.forEach((s) => dispatch(replicaTimeout(s)))
       return
     }
     const timer = setTimeout(() => {
+      const senders = nodeCycle.slice(0, 3)
       addToastWithTTL(
-        'Replica 1 initiated NewView (timeouts) after leader idle',
+        `NewView auto: ${senders.join(', ')} timed out leader`,
         'newview',
         30000,
       )
-      dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
+      senders.forEach((s) => dispatch(replicaTimeout(s)))
     }, remaining)
     return () => clearTimeout(timer)
   }, [state.proposeDeadline, state.proposal?.blockId, dispatch])
