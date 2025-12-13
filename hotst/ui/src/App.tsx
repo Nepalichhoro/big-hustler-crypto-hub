@@ -509,27 +509,23 @@ function App() {
         </div>
         <div className="stage-card">
           <p className="stage-label">Minimal model</p>
-          <div className="rail">
-            <div className="rail-dot active" />
-            <div className="rail-line" />
-            <div className={`rail-dot ${state.roundAdvanced ? 'active' : ''}`} />
-            <div className="rail-line" />
-            <div className={`rail-dot ${state.currentRound >= 1 ? 'active' : ''}`} />
-          </div>
-          <div className="rail-captions">
-            <span>Genesis</span>
-            <span>Round 0</span>
-            <span>Round 1</span>
+          <div className="rail chain-compact">
+            {[0, 1, 2, 3, 4, 5].map((r, idx) => (
+              <button
+                key={r}
+                className="rail-item"
+                onClick={() => setSelectedRound(r, true)}
+              >
+                <div className={`rail-dot ${state.currentRound >= r ? 'active' : ''}`} />
+                <p className="rail-caption">{r === 0 ? 'Genesis / R0' : `Round ${r}`}</p>
+                {idx < 5 && <div className="rail-line short" />}
+              </button>
+            ))}
           </div>
           <p className="rail-note">
             QC(Genesis) anchors Round 0. A QC(B0) or TC(0) is required to enter
-            Round 1.
+            Round 1; the chain is shown through Round 5.
           </p>
-          <ul className="mini-list">
-            <li>Genesis</li>
-            <li>Round 0</li>
-            <li>Round 1</li>
-          </ul>
         </div>
       </header>
 

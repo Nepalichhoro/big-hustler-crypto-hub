@@ -67,10 +67,6 @@ h1 {
 }
 
 .rail {
-  display: grid;
-  grid-template-columns: 20px 1fr 20px 1fr 20px;
-  align-items: center;
-  gap: 0;
   margin: 12px 0 8px;
 }
 
@@ -94,25 +90,40 @@ h1 {
   box-shadow: 0 8px 24px rgba(124, 200, 255, 0.3);
 }
 
-.rail-captions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  font-size: 13px;
-  color: #9fb5ff;
-  gap: 0;
-}
-
 .rail-note {
   margin: 8px 0 0;
   font-size: 13px;
   color: #c8d6ff;
 }
 
-.mini-list {
-  margin: 10px 0 0;
-  padding-left: 16px;
-  color: #c8d6ff;
-  line-height: 1.6;
+.chain-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.rail-line.short {
+  width: 24px;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05));
+}
+
+.rail-caption {
+  margin: 0;
+  font-size: 12px;
+  color: #d9e1ff;
 }
 
 .state-grid {
