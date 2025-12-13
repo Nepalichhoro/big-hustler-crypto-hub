@@ -6,6 +6,7 @@ type Props = {
   selectedLeader: string
   nodeVotes: Record<string, VoteStatus>
   activeProposalRound?: number
+  decisionRemaining: number | null
   onVote: (label: string, choice: VoteStatus) => void
   onOpenModal: (round: number) => void
 }
@@ -15,6 +16,7 @@ export function NodeCluster({
   selectedLeader,
   nodeVotes,
   activeProposalRound,
+  decisionRemaining,
   onVote,
   onOpenModal,
 }: Props) {
@@ -42,6 +44,11 @@ export function NodeCluster({
               </p>
               <p className="node-line">QC: {record.qc?.label ?? '—'}</p>
               <p className="node-line">TC: {record.tc?.label ?? '—'}</p>
+              {record.round === activeProposalRound && (
+                <p className="node-line">
+                  Vote window: {decisionRemaining !== null ? `${decisionRemaining}s` : '—'}
+                </p>
+              )}
               <p className={`vote-pill ${vote}`}>Vote: {vote}</p>
               <div className="node-actions">
                 <button disabled={!canVote} onClick={() => onVote(label, 'approve')}>

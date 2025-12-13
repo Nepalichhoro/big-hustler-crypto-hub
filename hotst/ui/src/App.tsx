@@ -61,13 +61,13 @@ function App() {
     if (!state.proposeDeadline) return
     const remaining = state.proposeDeadline - Date.now()
     if (remaining <= 0) {
-      addToastWithTTL('Leader idle: no proposal in window → TC', 'warn')
-      dispatch(triggerTimeout('Leader idle: no proposal within window.'))
+      addToastWithTTL('Leader idle: no proposal in NewView window → TC', 'warn')
+      dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
       return
     }
     const timer = setTimeout(() => {
-      addToastWithTTL('Leader idle: no proposal in window → TC', 'warn')
-      dispatch(triggerTimeout('Leader idle: no proposal within window.'))
+      addToastWithTTL('Leader idle: no proposal in NewView window → TC', 'warn')
+      dispatch(triggerTimeout('Leader idle: no proposal within NewView window.'))
     }, remaining)
     return () => clearTimeout(timer)
   }, [state.proposeDeadline, state.proposal?.blockId, dispatch])

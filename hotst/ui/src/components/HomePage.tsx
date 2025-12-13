@@ -105,6 +105,7 @@ export function HomePage({
           selectedLeader={selectedLeader}
           nodeVotes={nodeVotes}
           activeProposalRound={activeProposalRound}
+          decisionRemaining={decisionRemaining}
           onVote={onVote}
           onOpenModal={(round) => onSelectRound(round, true)}
         />

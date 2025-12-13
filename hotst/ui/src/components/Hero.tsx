@@ -39,19 +39,21 @@ export function Hero({
             lockedRound <strong>{lockedRound}</strong>
           </span>
         </div>
-          <div className="timer-strip">
-            <div>
-              <p className="stat-label">Proposal window</p>
-              <div className="timer-value">
-                <span className="timer-clock" />
-                <p className="stat-value">
-                  {proposeRemaining !== null ? `${proposeRemaining}s` : '—'}
-                </p>
-              </div>
-              <p className="mini-note">If leader stays idle, TC will form.</p>
+        <div className="timer-strip">
+          <div>
+            <p className="stat-label">NewView (leader) window</p>
+            <div className="timer-value">
+              <span className="timer-clock" />
+              <p className="stat-value">
+                {proposeRemaining !== null ? `${proposeRemaining}s` : '—'}
+              </p>
             </div>
-            <div>
-              <p className="stat-label">Vote window</p>
+            <p className="mini-note">
+              If the leader stays idle, replicas collect timeouts → NewView.
+            </p>
+          </div>
+          <div>
+            <p className="stat-label">Vote window</p>
               <div className="timer-value">
                 <span className="timer-clock" />
                 <p className="stat-value">
