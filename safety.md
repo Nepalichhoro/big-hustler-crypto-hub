@@ -1,0 +1,1 @@
+Leader proposes using QCs; replicas enforce safety using locks.
