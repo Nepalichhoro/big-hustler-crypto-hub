@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { NavLink, Route, Routes } from 'react-router-dom'
 import './App.css'
-import { Hero } from './components/Hero'
-import { ReplicaStateCard } from './components/ReplicaStateCard'
-import { RoundControlsCard } from './components/RoundControlsCard'
-import { DataStructuresCard } from './components/DataStructuresCard'
-import { ProposalCard } from './components/ProposalCard'
-import { InvariantGrid } from './components/InvariantGrid'
-import { RoundFocusCard } from './components/RoundFocusCard'
-import { NodeCluster } from './components/NodeCluster'
 import { RoundModal } from './components/RoundModal'
 import { Toaster } from './components/Toaster'
+import { HomePage } from './components/HomePage'
+import { InvariantsPage } from './components/InvariantsPage'
 import {
   DECISION_WINDOW_MS,
   PROPOSE_WINDOW_MS,
@@ -529,84 +524,52 @@ function App() {
     : null
 
   return (
-    <div className="page">
-      <Hero
-        currentRound={state.currentRound}
-        highQCLabel={state.highQC.label}
-        lockedRound={state.lockedRound}
-        proposeRemaining={state.proposal ? null : proposeRemaining}
-        decisionRemaining={state.proposal ? decisionRemaining : null}
-        onSelectRound={setSelectedRound}
-      />
-
-      <section className="state-grid">
-        <ReplicaStateCard
-          currentRound={state.currentRound}
-          highQCLabel={state.highQC.label}
-          lockedRound={state.lockedRound}
-          lockedBlock={state.lockedBlock}
-          onReset={reset}
-        />
-
-        <RoundControlsCard
-          currentRound={state.currentRound}
-          proposalId={state.proposal?.blockId}
-          onPropose={proposeBlock}
-          onCollectQC={formQCFromVotes}
-          onTimeout={triggerTimeout}
-          onIgnore={ignoreStaleMessage}
-        />
-
-        <DataStructuresCard dataSnapshot={dataSnapshot} />
-
-        <ProposalCard proposal={state.proposal} />
-      </section>
-
-      <InvariantGrid invariants={invariants} />
-
-      <section className="node-row">
-        <RoundFocusCard
-          record={selectedRecord}
-          leader={selectedLeader}
-          approvals={approvalsCount}
-          decisionRemaining={
-            state.proposal && state.proposal.round === selectedRecord.round
-              ? decisionRemaining
-              : null
-          }
-        />
-
-        <NodeCluster
-          record={selectedRecord}
-          selectedLeader={selectedLeader}
-          nodeVotes={state.nodeVotes}
-          activeProposalRound={state.proposal?.round}
-          onVote={handleVote}
-          onOpenModal={(round) => setSelectedRound(round, true)}
-        />
-      </section>
-
-      <section className="log">
-        <div className="section-heading">
-          <h2>Event log</h2>
-          <p className="sub">
-            Observe how we “stop and pin” safety in the genesis round.
-          </p>
+    <div className="app-shell">
+      <nav className="top-nav">
+        <div className="brand">HotStuff</div>
+        <div className="nav-links">
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
+            Home
+          </NavLink>
+          <NavLink to="/invariants" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Invariants
+          </NavLink>
         </div>
-        <div className="log-entries">
-          {state.log.map((entry, idx) => (
-            <div key={`${entry.title}-${idx}`} className="log-entry">
-              <div className={`tag ${entry.tag ?? 'info'}`}>
-                {entry.tag ?? 'info'}
-              </div>
-              <div>
-                <p className="log-title">{entry.title}</p>
-                <p className="log-detail">{entry.detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      </nav>
+
+      <main className="page">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <HomePage
+                currentRound={state.currentRound}
+                highQCLabel={state.highQC.label}
+                lockedRound={state.lockedRound}
+                lockedBlock={state.lockedBlock}
+                proposal={state.proposal}
+                proposeRemaining={proposeRemaining}
+                decisionRemaining={decisionRemaining}
+                dataSnapshot={dataSnapshot}
+                selectedRecord={selectedRecord}
+                selectedLeader={selectedLeader}
+                approvalsCount={approvalsCount}
+                activeProposalRound={state.proposal?.round}
+                onSelectRound={setSelectedRound}
+                onPropose={proposeBlock}
+                onCollectQC={formQCFromVotes}
+                onTimeout={triggerTimeout}
+                onIgnore={ignoreStaleMessage}
+                onReset={reset}
+                onVote={handleVote}
+                nodeVotes={state.nodeVotes}
+                logEntries={state.log}
+              />
+            }
+          />
+          <Route path="/invariants" element={<InvariantsPage invariants={invariants} />} />
+        </Routes>
+      </main>
 
       <Toaster toasts={toasts} />
 
