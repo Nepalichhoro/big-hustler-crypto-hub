@@ -594,6 +594,56 @@ button:active {
   font-size: 14px;
 }
 
+.toaster {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 10px;
+  z-index: 40;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 36, 0.92);
+  min-width: 220px;
+}
+
+.toast .toast-text {
+  margin: 0;
+  color: #e4ecff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.toast-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #9fb5ff;
+  box-shadow: 0 0 12px rgba(159, 181, 255, 0.6);
+}
+
+.toast.success .toast-dot {
+  background: #34d399;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+}
+
+.toast.warn .toast-dot {
+  background: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.6);
+}
+
+.toast.error .toast-dot {
+  background: #f87171;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.6);
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;

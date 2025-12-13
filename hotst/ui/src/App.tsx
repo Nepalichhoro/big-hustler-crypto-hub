@@ -24,6 +24,12 @@ type LogEntry = {
   tag?: 'safety' | 'info' | 'ignored' | 'round'
 }
 
+type Toast = {
+  id: number
+  message: string
+  tone: 'success' | 'warn' | 'error' | 'info'
+}
+
 type RoundRecord = {
   round: number
   proposal?: Proposal
@@ -79,8 +85,8 @@ const statusLabel: Record<InvariantStatus, string> = {
 const nodeCycle = ['Leader', 'Replica 1', 'Replica 2', 'Replica 3', 'Replica 4'] as const
 const leaderForRound = (round: number) => nodeCycle[round % nodeCycle.length]
 const VOTE_THRESHOLD = 3
-const DECISION_WINDOW_MS = 6000
-const PROPOSE_WINDOW_MS = 6000
+const DECISION_WINDOW_MS = 30000
+const PROPOSE_WINDOW_MS = 30000
 
 const initialRoundRecords: Record<number, RoundRecord> = {
   0: {
@@ -126,8 +132,18 @@ const trimLog = (log: LogEntry[], entry: LogEntry) =>
 
 function App() {
   const [state, setState] = useState<NodeState>(initialState)
+  const [toasts, setToasts] = useState<Toast[]>([])
 
-  const markTimeout = (reason?: string) =>
+  const addToast = (message: string, tone: Toast['tone'] = 'info') => {
+    const id = Date.now() + Math.random()
+    setToasts((prev) => [...prev, { id, message, tone }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 3600)
+  }
+
+  const markTimeout = (reason?: string) => {
+    addToast(reason ?? 'Timeout collected', 'warn')
     setState((prev) => {
       const tcRound = prev.currentRound
       const tc: Certificate = {
@@ -198,6 +214,7 @@ function App() {
         }),
       }
     })
+  }
 
   const handleVote = (label: string, choice: VoteStatus) => {
     setState((prev) => {
@@ -279,9 +296,9 @@ function App() {
   }, [state.proposeDeadline, state.proposal?.blockId])
 
   const proposeBlock = () => {
+    const targetRound = Math.min(state.currentRound, 5)
+    const blockId = `B${targetRound}`
     setState((prev) => {
-      const targetRound = Math.min(prev.currentRound, 5)
-      const blockId = `B${targetRound}`
       const proposal: Proposal = {
         blockId,
         round: targetRound,
@@ -323,6 +340,7 @@ function App() {
         }),
       }
     })
+    addToast(`Leader proposed ${blockId}`, 'info')
   }
 
   const formQCFromVotes = () => {
@@ -907,6 +925,17 @@ function App() {
           ))}
         </div>
       </section>
+
+      {toasts.length > 0 && (
+        <div className="toaster">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast ${t.tone}`}>
+              <span className="toast-dot" />
+              <p className="toast-text">{t.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {modalRecord && (
         <div className="modal-backdrop" onClick={() => setState((p) => ({ ...p, modalRound: null }))}>
