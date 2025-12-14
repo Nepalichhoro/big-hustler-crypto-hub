@@ -4,7 +4,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import './App.css'
 import { HomePage } from './components/HomePage'
 import { InvariantsPage } from './components/InvariantsPage'
-import { TendermintPage } from './components/TendermintPage'
+import { TendermintPage as ComparisonsPage } from './components/TendermintPage'
+import { TendermintSimPage } from './components/TendermintSimPage'
+import { FinalityPage } from './components/FinalityPage'
 import { RoundModal } from './components/RoundModal'
 import { Toaster } from './components/Toaster'
 import { leaderForRound, nodeCycle } from './constants'
@@ -28,6 +30,7 @@ import type { InvariantStatus } from './store/hotstuffSlice'
 function App() {
   const dispatch = useDispatch<AppDispatch>()
   const state = useSelector((s: RootState) => s.hotstuff)
+  const tmState = useSelector((s: RootState) => s.tendermint)
   const [now, setNow] = useState(Date.now())
 
   const addToastWithTTL = (
@@ -290,14 +293,17 @@ function App() {
           HotStuff
         </NavLink>
         <div className="nav-links">
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
-            Home
-          </NavLink>
           <NavLink to="/invariants" className={({ isActive }) => (isActive ? 'active' : '')}>
             Invariants
           </NavLink>
           <NavLink to="/tendermint" className={({ isActive }) => (isActive ? 'active' : '')}>
             Tendermint
+          </NavLink>
+          <NavLink to="/comparisons" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Comparisons
+          </NavLink>
+          <NavLink to="/finality" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Finality
           </NavLink>
         </div>
       </nav>
@@ -338,11 +344,13 @@ function App() {
             }
           />
           <Route path="/invariants" element={<InvariantsPage invariants={invariants} />} />
-          <Route path="/tendermint" element={<TendermintPage />} />
+          <Route path="/tendermint" element={<TendermintSimPage />} />
+          <Route path="/comparisons" element={<ComparisonsPage />} />
+          <Route path="/finality" element={<FinalityPage />} />
         </Routes>
       </main>
 
-      <Toaster toasts={state.toasts} />
+      <Toaster toasts={[...state.toasts, ...tmState.toasts]} />
 
       {modalRecord && (
         <RoundModal

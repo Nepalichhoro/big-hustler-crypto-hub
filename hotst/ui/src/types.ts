@@ -38,3 +38,26 @@ export type Toast = {
   message: string
   tone: 'success' | 'warn' | 'error' | 'info' | 'newview'
 }
+
+export type TendermintPhase = 'proposal' | 'prevote' | 'precommit'
+
+export type TendermintVote = 'pending' | 'approve' | 'deny'
+
+export type TendermintProposal = {
+  blockId: string
+  height: number
+  round: number
+  proposer: string
+  payload: string
+}
+
+export type TendermintRoundRecord = {
+  height: number
+  round: number
+  proposer: string
+  proposal?: TendermintProposal
+  prevote?: 'quorum' | 'nil' | 'rejected' | 'timeout'
+  precommit?: 'quorum' | 'nil' | 'rejected' | 'timeout'
+  status?: 'committed' | 'timeout' | 'failed' | 'in-progress'
+  notes: string[]
+}

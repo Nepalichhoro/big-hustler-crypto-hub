@@ -178,6 +178,12 @@ h1 {
   box-shadow: 0 8px 18px rgba(245, 158, 11, 0.35);
 }
 
+.rail-item.rejected .rail-dot {
+  background: #f87171;
+  border-color: #f87171;
+  box-shadow: 0 8px 18px rgba(248, 113, 113, 0.35);
+}
+
 .rail-item.idle .rail-dot {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.25);
@@ -370,6 +376,7 @@ button:active {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
@@ -380,7 +387,7 @@ button:active {
 
 .round-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
   margin: 10px 0;
 }
@@ -400,6 +407,26 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.log-title {
+  margin: 0;
+  font-weight: 700;
+  color: #fff;
+}
+
+.log-detail {
+  margin: 2px 0 0;
+  color: #c8d6ff;
+  font-size: 13px;
 }
 
 .round-item {
