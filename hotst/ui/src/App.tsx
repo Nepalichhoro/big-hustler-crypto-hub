@@ -8,6 +8,7 @@ import { TendermintPage as ComparisonsPage } from './components/tendermint/Tende
 import { TendermintSimPage } from './components/tendermint/TendermintSimPage'
 import { FinalityPage } from './components/FinalityPage'
 import { CryptoPage } from './components/crypto/CryptoPage'
+import { NarwhalPage } from './components/NarwhalPage'
 import { RoundModal } from './components/hotstuff/RoundModal'
 import { Toaster } from './components/Toaster'
 import { leaderForRound, nodeCycle } from './constants'
@@ -310,6 +311,9 @@ function App() {
           <NavLink to="/finality" className={({ isActive }) => (isActive ? 'active' : '')}>
             Finality
           </NavLink>
+          <NavLink to="/narwhal" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Narwhal/Bullshark
+          </NavLink>
         </div>
       </nav>
 
@@ -353,6 +357,7 @@ function App() {
           <Route path="/comparisons" element={<ComparisonsPage />} />
           <Route path="/crypto" element={<CryptoPage />} />
           <Route path="/finality" element={<FinalityPage />} />
+          <Route path="/narwhal" element={<NarwhalPage />} />
         </Routes>
       </main>
 
