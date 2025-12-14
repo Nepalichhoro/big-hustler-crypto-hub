@@ -9,6 +9,7 @@ import { TendermintSimPage } from './components/tendermint/TendermintSimPage'
 import { FinalityPage } from './components/FinalityPage'
 import { CryptoPage } from './components/crypto/CryptoPage'
 import { NarwhalPage } from './components/NarwhalPage'
+import { BtcLayerPage } from './components/BtcLayerPage'
 import { RoundModal } from './components/hotstuff/RoundModal'
 import { Toaster } from './components/Toaster'
 import { leaderForRound, nodeCycle } from './constants'
@@ -314,6 +315,9 @@ function App() {
           <NavLink to="/narwhal" className={({ isActive }) => (isActive ? 'active' : '')}>
             Narwhal/Bullshark
           </NavLink>
+          <NavLink to="/btc-layer" className={({ isActive }) => (isActive ? 'active' : '')}>
+            BTC Layer 2
+          </NavLink>
         </div>
       </nav>
 
@@ -358,6 +362,7 @@ function App() {
           <Route path="/crypto" element={<CryptoPage />} />
           <Route path="/finality" element={<FinalityPage />} />
           <Route path="/narwhal" element={<NarwhalPage />} />
+          <Route path="/btc-layer" element={<BtcLayerPage />} />
         </Routes>
       </main>
 
