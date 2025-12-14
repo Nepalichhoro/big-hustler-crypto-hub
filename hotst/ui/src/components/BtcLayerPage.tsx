@@ -74,6 +74,113 @@ export function BtcLayerPage() {
         <li>Use external DA (or simple blob store) for data availability; attest in BTC checkpoints.</li>
         <li>Upgrade to ZK validity proofs once flows work; verify proofs in a sidechain/L2 environment.</li>
       </ul>
+
+      <div className="section-heading">
+        <h2>BTC limitations (DA is the bottleneck)</h2>
+        <p className="sub">
+          Bitcoin gives settlement and immutability, but no native data availability. An L2 must pick
+          a DA strategy.
+        </p>
+      </div>
+      <table className="info-table">
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Where data lives</th>
+            <th>Pros</th>
+            <th>Cons</th>
+            <th>Who uses it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>On-BTC DA</td>
+            <td>OP_RETURN / witness inscriptions in BTC blocks</td>
+            <td>Max security; DA = Bitcoin</td>
+            <td>Tiny throughput; very expensive</td>
+            <td>Early Lightning, simple anchoring, proto-rollups</td>
+          </tr>
+          <tr>
+            <td>External DA + BTC anchor</td>
+            <td>Celestia / EigenDA hold tx data; BTC stores roots</td>
+            <td>Scalable, cheap, modular</td>
+            <td>Trust shifts to DA layer; need DA light clients</td>
+            <td>Experimental BTC rollups</td>
+          </tr>
+          <tr>
+            <td>Dispersed DA + erasure coding</td>
+            <td>Sharded/erasure-coded P2P storage; BTC stores commitments</td>
+            <td>No single DA operator; withholding detectable</td>
+            <td>Complex, probabilistic DA, slower</td>
+            <td>Alpen-like, BitVM-flavored designs</td>
+          </tr>
+          <tr>
+            <td>BitVM-style optimistic DA</td>
+            <td>Off-chain P2P; BTC only for disputes</td>
+            <td>Safety preserved; minimal on-chain data</td>
+            <td>Liveness fragile if data withheld</td>
+            <td>BitVM rollup experiments</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="section-heading">
+        <h3>Projects and DA guarantees</h3>
+      </div>
+      <table className="info-table">
+        <thead>
+          <tr>
+            <th>Project / Approach</th>
+            <th>Where tx data lives</th>
+            <th>DA guarantee</th>
+            <th>Trust model</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>On-BTC DA</td>
+            <td>Bitcoin blocks</td>
+            <td>Deterministic</td>
+            <td>BTC only</td>
+          </tr>
+          <tr>
+            <td>External DA (Celestia/EigenDA)</td>
+            <td>DA chain</td>
+            <td>Probabilistic + slashing</td>
+            <td>BTC + DA</td>
+          </tr>
+          <tr>
+            <td>Stacks</td>
+            <td>Stacks nodes (off-chain), anchor to BTC</td>
+            <td>Social</td>
+            <td>Federation / social recovery</td>
+          </tr>
+          <tr>
+            <td>Babylon</td>
+            <td>N/A (focuses on timestamping/PoS security)</td>
+            <td>N/A</td>
+            <td>Security layer, not execution L2</td>
+          </tr>
+          <tr>
+            <td>Alpen Labs</td>
+            <td>Erasure-coded P2P</td>
+            <td>Probabilistic, detectable</td>
+            <td>Crypto-economic</td>
+          </tr>
+          <tr>
+            <td>BitVM rollups</td>
+            <td>Off-chain P2P</td>
+            <td>Safety only; liveness weak</td>
+            <td>Challenge-based</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p className="note">
+        Core trade-off: Bitcoin gives strong safety, but DA and liveness are costly. BTC L2s choose
+        between maximal safety (on-BTC), scalability (external DA), or probabilistic DA (erasure
+        coding/BitVM), because Bitcoin lacks blobs/sampling.
+      </p>
     </div>
   )
 }
