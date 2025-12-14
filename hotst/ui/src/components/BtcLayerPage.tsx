@@ -89,6 +89,7 @@ export function BtcLayerPage() {
             <th>Where data lives</th>
             <th>Pros</th>
             <th>Cons</th>
+            <th>Trust model</th>
             <th>Who uses it</th>
           </tr>
         </thead>
@@ -98,6 +99,7 @@ export function BtcLayerPage() {
             <td>OP_RETURN / witness inscriptions in BTC blocks</td>
             <td>Max security; DA = Bitcoin</td>
             <td>Tiny throughput; very expensive</td>
+            <td>Pure Bitcoin full-node security</td>
             <td>Early Lightning, simple anchoring, proto-rollups</td>
           </tr>
           <tr>
@@ -105,6 +107,7 @@ export function BtcLayerPage() {
             <td>Celestia / EigenDA hold tx data; BTC stores roots</td>
             <td>Scalable, cheap, modular</td>
             <td>Trust shifts to DA layer; need DA light clients</td>
+            <td>BTC settlement × DA chain availability/slashing</td>
             <td>Experimental BTC rollups</td>
           </tr>
           <tr>
@@ -112,6 +115,7 @@ export function BtcLayerPage() {
             <td>Sharded/erasure-coded P2P storage; BTC stores commitments</td>
             <td>No single DA operator; withholding detectable</td>
             <td>Complex, probabilistic DA, slower</td>
+            <td>Crypo-economic + probabilistic availability with challenges</td>
             <td>Alpen-like, BitVM-flavored designs</td>
           </tr>
           <tr>
@@ -119,6 +123,7 @@ export function BtcLayerPage() {
             <td>Off-chain P2P; BTC only for disputes</td>
             <td>Safety preserved; minimal on-chain data</td>
             <td>Liveness fragile if data withheld</td>
+            <td>Challenge-based safety; liveness is social/cooperative</td>
             <td>BitVM rollup experiments</td>
           </tr>
         </tbody>
@@ -139,37 +144,37 @@ export function BtcLayerPage() {
         <tbody>
           <tr>
             <td>On-BTC DA</td>
-            <td>Bitcoin blocks</td>
+            <td>Bitcoin blocks (full nodes store raw tx data forever)</td>
             <td>Deterministic</td>
             <td>BTC only</td>
           </tr>
           <tr>
             <td>External DA (Celestia/EigenDA)</td>
-            <td>DA chain</td>
+            <td>DA chain blobs; BTC stores commitments</td>
             <td>Probabilistic + slashing</td>
             <td>BTC + DA</td>
           </tr>
           <tr>
             <td>Stacks</td>
-            <td>Stacks nodes (off-chain), anchor to BTC</td>
+            <td>Stacks nodes keep tx data; periodic anchors to BTC</td>
             <td>Social</td>
             <td>Federation / social recovery</td>
           </tr>
           <tr>
             <td>Babylon</td>
-            <td>N/A (focuses on timestamping/PoS security)</td>
+            <td>N/A (focuses on timestamping/PoS security, not DA)</td>
             <td>N/A</td>
             <td>Security layer, not execution L2</td>
           </tr>
           <tr>
             <td>Alpen Labs</td>
-            <td>Erasure-coded P2P</td>
+            <td>Erasure-coded P2P shards; BTC stores commitments</td>
             <td>Probabilistic, detectable</td>
             <td>Crypto-economic</td>
           </tr>
           <tr>
             <td>BitVM rollups</td>
-            <td>Off-chain P2P</td>
+            <td>Off-chain P2P data; BTC only for fraud games</td>
             <td>Safety only; liveness weak</td>
             <td>Challenge-based</td>
           </tr>
