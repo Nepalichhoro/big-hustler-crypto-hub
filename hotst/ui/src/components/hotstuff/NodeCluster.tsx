@@ -1,5 +1,5 @@
-import { nodeCycle } from '../constants'
-import type { RoundRecord, VoteStatus } from '../types'
+import { nodeCycle } from '../../constants'
+import type { RoundRecord, VoteStatus } from '../../types'
 
 type Props = {
   record: RoundRecord

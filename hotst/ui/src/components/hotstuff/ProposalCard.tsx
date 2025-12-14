@@ -1,4 +1,4 @@
-import type { Proposal } from '../types'
+import type { Proposal } from '../../types'
 
 type Props = {
   proposal?: Proposal

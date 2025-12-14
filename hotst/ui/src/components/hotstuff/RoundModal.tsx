@@ -1,51 +1,24 @@
-import type { RoundRecord } from '../types'
-import { VOTE_THRESHOLD } from '../constants'
+import type { RoundRecord } from '../../types'
 
 type Props = {
   record: RoundRecord
   leader: string
-  approvals: number
-  decisionRemaining: number | null
+  onClose: () => void
 }
 
-export function RoundFocusCard({
-  record,
-  leader,
-  approvals,
-  decisionRemaining,
-}: Props) {
+export function RoundModal({ record, leader, onClose }: Props) {
   return (
-    <div className="card round-detail">
-      <div className="card-heading">
-        <p className="label">Round focus</p>
-        <p className="sub">Click the chain to inspect how we got here.</p>
-      </div>
-      <div className="round-summary">
-        <p className="label">Round {record.round}</p>
-        <h3>
-          {record.qc
-            ? 'Certified via QC'
-            : record.tc
-              ? 'Timeout collected'
-              : record.proposal
-                ? 'Proposed'
-                : 'Not visited yet'}
-        </h3>
-        <p className="detail">
-          {record.proposal
-            ? `Block ${record.proposal.blockId} extends ${record.proposal.justifyQC.label}.`
-            : 'No proposal observed for this round.'}
-        </p>
-        {record.proposal && (
-          <div className="vote-strip">
-            <span>
-              Approvals {approvals}/{VOTE_THRESHOLD}
-            </span>
-            {decisionRemaining !== null && (
-              <span>Decision window: {decisionRemaining}s</span>
-            )}
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="label">Round detail</p>
+            <h3>Round {record.round}</h3>
           </div>
-        )}
+          <button className="ghost" onClick={onClose}>
+            Close
+          </button>
+        </div>
         <div className="round-grid">
           <div>
             <p className="stat-label">Block</p>
@@ -60,9 +33,7 @@ export function RoundFocusCard({
           <div>
             <p className="stat-label">justifyQC</p>
             <p className="stat-value">
-              {record.justifyQC?.label ??
-                record.proposal?.justifyQC.label ??
-                '—'}
+              {record.justifyQC?.label ?? record.proposal?.justifyQC.label ?? '—'}
             </p>
           </div>
           <div>

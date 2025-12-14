@@ -1,4 +1,4 @@
-import type { LogEntry, Proposal, RoundRecord, VoteStatus } from '../types'
+import type { LogEntry, Proposal, RoundRecord, VoteStatus } from '../../types'
 import { Hero } from './Hero'
 import { ReplicaStateCard } from './ReplicaStateCard'
 import { RoundControlsCard } from './RoundControlsCard'

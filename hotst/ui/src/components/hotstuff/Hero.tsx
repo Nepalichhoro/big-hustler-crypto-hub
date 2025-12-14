@@ -1,4 +1,4 @@
-import { leaderForRound } from '../constants'
+import { leaderForRound } from '../../constants'
 
 type Props = {
   currentRound: number

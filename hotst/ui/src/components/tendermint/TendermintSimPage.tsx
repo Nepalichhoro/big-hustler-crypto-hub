@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { nodeCycle, VOTE_THRESHOLD } from '../constants'
-import { Toaster } from './Toaster'
-import type { RootState, AppDispatch } from '../store/store'
+import { nodeCycle, VOTE_THRESHOLD } from '../../constants'
+import { Toaster } from '../Toaster'
+import type { RootState, AppDispatch } from '../../store/store'
 import {
   tmAddToast,
   tmPhaseTimeout,
@@ -12,8 +12,8 @@ import {
   tmRemoveToast,
   tmReset,
   tmSetSelected,
-} from '../store/tendermintSlice'
-import type { TendermintVote } from '../types'
+} from '../../store/tendermintSlice'
+import type { TendermintVote } from '../../types'
 
 const proposerFor = (round: number) => nodeCycle[round % nodeCycle.length]
 
