@@ -19,6 +19,7 @@ type Props = {
   dataSnapshot: string
   selectedRecord: RoundRecord
   selectedLeader: string
+  roundStatuses: Record<number, 'accepted' | 'rejected' | 'timeout' | 'idle'>
   approvalsCount: number
   activeProposalRound?: number
   nodeVotes: Record<string, VoteStatus>
@@ -43,6 +44,7 @@ export function HomePage({
   dataSnapshot,
   selectedRecord,
   selectedLeader,
+  roundStatuses,
   approvalsCount,
   activeProposalRound,
   nodeVotes,
@@ -65,6 +67,7 @@ export function HomePage({
         proposeRemaining={proposal ? null : proposeRemaining}
         decisionRemaining={proposal ? decisionRemaining : null}
         onSelectRound={onSelectRound}
+        roundStatuses={roundStatuses}
       />
 
       <section className="state-grid">

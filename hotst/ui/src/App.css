@@ -166,6 +166,23 @@ h1 {
   box-shadow: 0 8px 24px rgba(124, 200, 255, 0.3);
 }
 
+.rail-item.accepted .rail-dot {
+  background: #34d399;
+  border-color: #34d399;
+  box-shadow: 0 8px 18px rgba(52, 211, 153, 0.35);
+}
+
+.rail-item.timeout .rail-dot {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.35);
+}
+
+.rail-item.idle .rail-dot {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .rail-note {
   margin: 8px 0 0;
   font-size: 13px;
@@ -655,6 +672,30 @@ button:active {
   margin: 0;
   color: #c8d6ff;
   font-size: 14px;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 20px;
+  font-size: 14px;
+  color: #e4ecff;
+}
+
+.info-table th,
+.info-table td {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.info-table th {
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+}
+
+.info-table tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .toaster {

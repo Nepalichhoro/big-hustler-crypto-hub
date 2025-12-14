@@ -253,6 +253,15 @@ function App() {
     } as RoundRecord)
   const selectedLeader = leaderForRound(selectedRecord.round)
 
+  const roundStatuses = useMemo(() => {
+    const status: Record<number, 'accepted' | 'rejected' | 'timeout' | 'idle'> = {}
+    Object.values(state.roundRecords).forEach((rec) => {
+      if (rec.qc) status[rec.round] = 'accepted'
+      else if (rec.tc) status[rec.round] = 'timeout'
+    })
+    return status
+  }, [state.roundRecords])
+
   const modalRecord =
     state.modalRound !== null
       ? state.roundRecords[state.modalRound] ??
@@ -306,6 +315,7 @@ function App() {
                 approvalsCount={approvalsCount}
                 activeProposalRound={state.proposal?.round}
                 newViewRemaining={newViewRemaining}
+                roundStatuses={roundStatuses}
                 onSelectRound={(round, openModal) =>
                   dispatch(setSelectedRound({ round, openModal }))
                 }

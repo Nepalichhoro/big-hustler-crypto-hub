@@ -7,6 +7,7 @@ type Props = {
   proposeRemaining: number | null
   decisionRemaining: number | null
   onSelectRound: (round: number, openModal?: boolean) => void
+  roundStatuses: Record<number, 'accepted' | 'rejected' | 'timeout' | 'idle'>
 }
 
 const rounds = [0, 1, 2, 3, 4, 5]
@@ -18,6 +19,7 @@ export function Hero({
   proposeRemaining,
   decisionRemaining,
   onSelectRound,
+  roundStatuses,
 }: Props) {
   return (
     <header className="hero">
@@ -72,7 +74,7 @@ export function Hero({
           {rounds.map((r, idx) => (
             <button
               key={r}
-              className="rail-item"
+              className={`rail-item ${roundStatuses[r] ?? ''}`}
               onClick={() => onSelectRound(r, true)}
             >
               <div className={`rail-dot ${currentRound >= r ? 'active' : ''}`} />
