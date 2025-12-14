@@ -245,14 +245,18 @@ const hotstuffSlice = createSlice({
   name: 'hotstuff',
   initialState,
   reducers: {
-    proposeBlock(state) {
+    proposeBlock(
+      state,
+      action: PayloadAction<{ blockId?: string; payload?: unknown } | undefined>,
+    ) {
       const targetRound = Math.min(state.currentRound, 5)
-      const blockId = `B${targetRound}`
+      const blockId = action.payload?.blockId ?? `B${targetRound}`
       const proposal: Proposal = {
         blockId,
         round: targetRound,
         parent: state.highQC.block ?? 'Genesis',
         justifyQC: state.highQC,
+        payload: action.payload?.payload,
       }
       state.proposal = proposal
       state.lastVoteSafety = 'unknown'

@@ -7,6 +7,7 @@ import { InvariantsPage } from './components/hotstuff/InvariantsPage'
 import { TendermintPage as ComparisonsPage } from './components/tendermint/TendermintPage'
 import { TendermintSimPage } from './components/tendermint/TendermintSimPage'
 import { FinalityPage } from './components/FinalityPage'
+import { CryptoPage } from './components/crypto/CryptoPage'
 import { RoundModal } from './components/hotstuff/RoundModal'
 import { Toaster } from './components/Toaster'
 import { leaderForRound, nodeCycle } from './constants'
@@ -31,6 +32,7 @@ function App() {
   const dispatch = useDispatch<AppDispatch>()
   const state = useSelector((s: RootState) => s.hotstuff)
   const tmState = useSelector((s: RootState) => s.tendermint)
+  const cryptoState = useSelector((s: RootState) => s.cryptoHotstuff)
   const [now, setNow] = useState(Date.now())
 
   const addToastWithTTL = (
@@ -302,6 +304,9 @@ function App() {
           <NavLink to="/comparisons" className={({ isActive }) => (isActive ? 'active' : '')}>
             Comparisons
           </NavLink>
+          <NavLink to="/crypto" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Crypto
+          </NavLink>
           <NavLink to="/finality" className={({ isActive }) => (isActive ? 'active' : '')}>
             Finality
           </NavLink>
@@ -346,11 +351,12 @@ function App() {
           <Route path="/invariants" element={<InvariantsPage invariants={invariants} />} />
           <Route path="/tendermint" element={<TendermintSimPage />} />
           <Route path="/comparisons" element={<ComparisonsPage />} />
+          <Route path="/crypto" element={<CryptoPage />} />
           <Route path="/finality" element={<FinalityPage />} />
         </Routes>
       </main>
 
-      <Toaster toasts={[...state.toasts, ...tmState.toasts]} />
+      <Toaster toasts={[...state.toasts, ...tmState.toasts, ...cryptoState.toasts]} />
 
       {modalRecord && (
         <RoundModal

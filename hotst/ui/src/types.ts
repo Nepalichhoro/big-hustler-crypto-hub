@@ -13,6 +13,7 @@ export type Proposal = {
   round: number
   parent: string
   justifyQC: Certificate
+  payload?: unknown
 }
 
 export type LogEntry = {

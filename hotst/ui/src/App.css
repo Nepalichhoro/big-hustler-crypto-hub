@@ -363,6 +363,37 @@ button:active {
   max-height: 220px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field input,
+.form-field select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4ecff;
+  font-size: 14px;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+.form-field input:disabled {
+  opacity: 0.7;
+}
+
 .round-detail h3 {
   margin: 4px 0 8px;
 }
