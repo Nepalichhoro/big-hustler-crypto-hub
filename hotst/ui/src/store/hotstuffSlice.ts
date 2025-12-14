@@ -43,6 +43,7 @@ export type NodeState = {
   log: LogEntry[]
   lastVoteSafety: 'unknown' | 'safe' | 'blocked'
   toasts: Toast[]
+  blockGraph: Record<string, { parent?: string; qcRound: number }>
 }
 
 const createInitialState = (): NodeState => ({
@@ -74,6 +75,9 @@ const createInitialState = (): NodeState => ({
   ],
   lastVoteSafety: 'unknown',
   toasts: [],
+  blockGraph: {
+    Genesis: { parent: undefined, qcRound: 0 },
+  },
 })
 
 const initialState: NodeState = createInitialState()
@@ -152,6 +156,29 @@ function produceQCFromVotes(draft: NodeState, votes: Record<string, VoteStatus>)
       ...(draft.roundRecords[roundKey]?.notes ?? []),
       `QC formed via votes for ${draft.proposal.blockId}.`,
     ],
+  }
+
+  // Track QC and check 3-chain commit (grandparent commit rule)
+  draft.blockGraph[qc.block!] = {
+    parent: draft.proposal.parent,
+    qcRound: qc.round,
+  }
+  const parentId = draft.proposal.parent
+  const grandId = parentId ? draft.blockGraph[parentId]?.parent : undefined
+  const parentHasQC = parentId && draft.blockGraph[parentId]?.qcRound !== undefined
+  const grandHasQC = grandId && draft.blockGraph[grandId]?.qcRound !== undefined
+  if (parentHasQC && grandHasQC && grandId && !draft.committedBlocks.includes(grandId)) {
+    draft.committedBlocks = [...draft.committedBlocks, grandId]
+    draft.log = trimLog(draft.log, {
+      title: `Commit ${grandId}`,
+      detail: `3-chain QC path committed ${grandId}.`,
+      tag: 'round',
+    })
+    draft.toasts.push({
+      id: Date.now() + Math.random(),
+      message: `Committed ${grandId} via 3-chain`,
+      tone: 'success',
+    })
   }
   if (!draft.roundRecords[nextRound]) {
     draft.roundRecords[nextRound] = {

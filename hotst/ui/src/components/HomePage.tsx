@@ -4,6 +4,7 @@ import { ReplicaStateCard } from './ReplicaStateCard'
 import { RoundControlsCard } from './RoundControlsCard'
 import { DataStructuresCard } from './DataStructuresCard'
 import { ProposalCard } from './ProposalCard'
+import { FinalChainCard } from './FinalChainCard'
 import { RoundFocusCard } from './RoundFocusCard'
 import { NodeCluster } from './NodeCluster'
 
@@ -20,6 +21,7 @@ type Props = {
   selectedRecord: RoundRecord
   selectedLeader: string
   roundStatuses: Record<number, 'accepted' | 'rejected' | 'timeout' | 'idle'>
+  committedBlocks: string[]
   approvalsCount: number
   activeProposalRound?: number
   nodeVotes: Record<string, VoteStatus>
@@ -45,6 +47,7 @@ export function HomePage({
   selectedRecord,
   selectedLeader,
   roundStatuses,
+  committedBlocks,
   approvalsCount,
   activeProposalRound,
   nodeVotes,
@@ -95,6 +98,8 @@ export function HomePage({
         </p>
 
         <DataStructuresCard dataSnapshot={dataSnapshot} />
+
+        <FinalChainCard committedBlocks={committedBlocks} />
 
         <ProposalCard proposal={proposal} />
       </section>

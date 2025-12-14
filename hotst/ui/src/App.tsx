@@ -312,6 +312,7 @@ function App() {
                 dataSnapshot={dataSnapshot}
                 selectedRecord={selectedRecord}
                 selectedLeader={selectedLeader}
+                committedBlocks={state.committedBlocks}
                 approvalsCount={approvalsCount}
                 activeProposalRound={state.proposal?.round}
                 newViewRemaining={newViewRemaining}
