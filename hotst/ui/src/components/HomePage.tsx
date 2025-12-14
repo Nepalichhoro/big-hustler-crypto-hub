@@ -105,6 +105,9 @@ export function HomePage({
         <NodeCluster
           record={selectedRecord}
           selectedLeader={selectedLeader}
+          lockedRound={lockedRound}
+          lockedBlock={lockedBlock}
+          highQCLabel={highQCLabel}
           nodeVotes={nodeVotes}
           activeProposalRound={activeProposalRound}
           newViewRemaining={newViewRemaining}

@@ -4,6 +4,9 @@ import type { RoundRecord, VoteStatus } from '../types'
 type Props = {
   record: RoundRecord
   selectedLeader: string
+  lockedRound: number
+  lockedBlock: string | null
+  highQCLabel: string
   nodeVotes: Record<string, VoteStatus>
   activeProposalRound?: number
   newViewRemaining: number | null
@@ -15,6 +18,9 @@ type Props = {
 export function NodeCluster({
   record,
   selectedLeader,
+  lockedRound,
+  lockedBlock,
+  highQCLabel,
   nodeVotes,
   activeProposalRound,
   newViewRemaining,
@@ -44,6 +50,9 @@ export function NodeCluster({
               <p className="node-line">
                 Proposal: {record.proposal?.blockId ?? '—'}
               </p>
+              <p className="node-line">Locked round: {lockedRound}</p>
+              <p className="node-line">Locked block: {lockedBlock ?? '⊥'}</p>
+              <p className="node-line">HighQC: {highQCLabel}</p>
               <p className="node-line">QC: {record.qc?.label ?? '—'}</p>
               <p className="node-line">TC: {record.tc?.label ?? '—'}</p>
               {record.round === activeProposalRound ? (

@@ -248,6 +248,7 @@ const hotstuffSlice = createSlice({
       state.timeoutSenders = []
       state.decisionDeadline = Date.now() + DECISION_WINDOW_MS
       state.proposeDeadline = undefined
+      state.selectedRound = targetRound
       state.log = trimLog(state.log, {
         title: `Leader proposes ${blockId}`,
         detail: `Proposal extends ${proposal.justifyQC.label} into Round ${targetRound}.`,
@@ -343,7 +344,31 @@ const hotstuffSlice = createSlice({
           message: `Proposal ${state.proposal.blockId} rejected by quorum denies`,
           tone: 'error',
         })
-        applyTimeout(state, `Proposal ${state.proposal.blockId} rejected by quorum denies`)
+        state.lastVoteSafety = 'blocked'
+        state.log = trimLog(state.log, {
+          title: 'Proposal rejected',
+          detail: `2f+1 denies for ${state.proposal.blockId}; waiting for TC to advance.`,
+          tag: 'safety',
+        })
+        state.roundRecords = {
+          ...state.roundRecords,
+          [state.proposal.round]: {
+            ...(state.roundRecords[state.proposal.round] ?? {
+              round: state.proposal.round,
+              notes: [],
+            }),
+            proposal: state.proposal,
+            notes: [
+              ...(state.roundRecords[state.proposal.round]?.notes ?? []),
+              `Proposal ${state.proposal.blockId} rejected by 2f+1 denies.`,
+            ],
+          },
+        }
+        state.proposal = undefined
+        state.nodeVotes = {}
+        state.decisionDeadline = undefined
+        state.timeoutSenders = []
+        state.proposeDeadline = Date.now() + PROPOSE_WINDOW_MS
       } else {
         state.log = trimLog(state.log, {
           title: `${label} chose ${choice}`,
