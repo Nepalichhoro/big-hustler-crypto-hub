@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import './App.css'
 import { HomePage } from './components/HomePage'
 import { InvariantsPage } from './components/InvariantsPage'
+import { TendermintPage } from './components/TendermintPage'
 import { RoundModal } from './components/RoundModal'
 import { Toaster } from './components/Toaster'
 import { leaderForRound, nodeCycle } from './constants'
@@ -285,13 +286,18 @@ function App() {
   return (
     <div className="app-shell">
       <nav className="top-nav">
-        <div className="brand">HotStuff</div>
+        <NavLink to="/" className="brand">
+          HotStuff
+        </NavLink>
         <div className="nav-links">
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
             Home
           </NavLink>
           <NavLink to="/invariants" className={({ isActive }) => (isActive ? 'active' : '')}>
             Invariants
+          </NavLink>
+          <NavLink to="/tendermint" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Tendermint
           </NavLink>
         </div>
       </nav>
@@ -332,6 +338,7 @@ function App() {
             }
           />
           <Route path="/invariants" element={<InvariantsPage invariants={invariants} />} />
+          <Route path="/tendermint" element={<TendermintPage />} />
         </Routes>
       </main>
 
