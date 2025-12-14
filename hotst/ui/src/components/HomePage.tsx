@@ -87,6 +87,12 @@ export function HomePage({
           onTimeout={onTimeout}
           onIgnore={onIgnore}
         />
+        <p className="note">
+          What “stale message ignored” means: replicas drop messages from older
+          rounds (e.g., Round r-1 when currentRound=r) to keep round progress
+          monotonic. Stale ≙ outdated view/round messages that must not roll the
+          node back.
+        </p>
 
         <DataStructuresCard dataSnapshot={dataSnapshot} />
 
