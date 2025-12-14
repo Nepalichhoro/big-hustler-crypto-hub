@@ -175,14 +175,6 @@ function applyTimeout(state: NodeState, reason: string) {
   const nextRound = Math.min(state.currentRound + 1, 5)
   state.roundRegressed = state.roundRegressed || nextRound < state.currentRound
   state.highQCRegressed = state.highQCRegressed || tc.round < state.highQC.round
-  const nodeVotes = Object.keys(state.nodeVotes).length
-    ? Object.fromEntries(
-        Object.entries(state.nodeVotes).map(([k, v]) => [
-          k,
-          v === 'pending' ? 'ignored' : v,
-        ]),
-      )
-    : state.nodeVotes
   state.highQC = tc.round >= state.highQC.round ? tc : state.highQC
   state.timeoutIssued = true
   state.currentRound = nextRound
@@ -190,7 +182,7 @@ function applyTimeout(state: NodeState, reason: string) {
   state.roundRegressed = state.roundRegressed
   state.proposal = undefined
   state.lastVoteSafety = 'unknown'
-  state.nodeVotes = nodeVotes
+  state.nodeVotes = {}
   state.decisionDeadline = undefined
   state.proposeDeadline = nextRound <= 5 ? Date.now() + PROPOSE_WINDOW_MS : undefined
   state.timeoutSenders = []
@@ -253,6 +245,7 @@ const hotstuffSlice = createSlice({
       state.nodeVotes = Object.fromEntries(
         nodeCycle.map((label) => [label, 'pending' as VoteStatus]),
       )
+      state.timeoutSenders = []
       state.decisionDeadline = Date.now() + DECISION_WINDOW_MS
       state.proposeDeadline = undefined
       state.log = trimLog(state.log, {
@@ -345,31 +338,12 @@ const hotstuffSlice = createSlice({
       if (approvals >= VOTE_THRESHOLD) {
         produceQCFromVotes(state, state.nodeVotes)
       } else if (denies >= VOTE_THRESHOLD) {
-        state.lastVoteSafety = 'blocked'
-        state.log = trimLog(state.log, {
-          title: 'Proposal rejected',
-          detail: `2f+1 denies for ${state.proposal.blockId}; entering NewView.`,
-          tag: 'safety',
+        state.toasts.push({
+          id: Date.now() + Math.random(),
+          message: `Proposal ${state.proposal.blockId} rejected by quorum denies`,
+          tone: 'error',
         })
-        state.roundRecords = {
-          ...state.roundRecords,
-          [state.proposal.round]: {
-            ...(state.roundRecords[state.proposal.round] ?? {
-              round: state.proposal.round,
-              notes: [],
-            }),
-            proposal: state.proposal,
-            notes: [
-              ...(state.roundRecords[state.proposal.round]?.notes ?? []),
-              `Proposal ${state.proposal.blockId} rejected by 2f+1 denies.`,
-            ],
-          },
-        }
-        state.proposal = undefined
-        state.nodeVotes = {}
-        state.decisionDeadline = undefined
-        state.timeoutSenders = []
-        state.proposeDeadline = Date.now() + PROPOSE_WINDOW_MS
+        applyTimeout(state, `Proposal ${state.proposal.blockId} rejected by quorum denies`)
       } else {
         state.log = trimLog(state.log, {
           title: `${label} chose ${choice}`,
