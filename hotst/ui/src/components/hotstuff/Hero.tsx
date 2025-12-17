@@ -74,6 +74,7 @@ export function Hero({
           <span className="chip">
             lockedRound <strong>{lockedRound}</strong>
           </span><span><i>locks protect safety during voting, not during proposing.</i></span>
+          <span>Used by leaders. Attached to proposals as justifyQC. Answers: 👉 “What is the freshest globally safe block to extend?”</span>
           
         </div>
         <div className="timer-strip">
