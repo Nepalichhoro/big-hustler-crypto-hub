@@ -23,7 +23,41 @@ export function Hero({
 }: Props) {
   return (
     <header className="hero">
-      <div><p>In HotStuff, no single node adds blocks to the blockchain; every replica independently commits blocks when it locally observes the 3-QC rule, and finality is inferred rather than announced.</p>
+      <div>
+        <section>
+  <h3>What the leader actually does (important)</h3>
+
+  <p><strong>The leader:</strong></p>
+  <ul>
+    <li>proposes blocks</li>
+    <li>aggregates votes</li>
+    <li>broadcasts QCs</li>
+  </ul>
+
+  <p>That’s it.</p>
+
+  <p><strong>Leaders do NOT:</strong></p>
+  <ul>
+    <li>decide finality</li>
+    <li>append committed blocks for others</li>
+    <li>announce commits</li>
+  </ul>
+
+  <h3>Mental model (this will click)</h3>
+
+  <p>Think of HotStuff like this:</p>
+  <ul>
+    <li>The blockchain is implicit</li>
+    <li>QCs are the real data structure</li>
+    <li>Blocks become final as a side effect of QC growth</li>
+  </ul>
+
+  <p>
+    <strong>HotStuff is a QC-chain protocol, not a “block append” protocol.</strong>
+  </p>
+</section>
+
+        <p>In HotStuff, no single node adds blocks to the blockchain; every replica independently commits blocks when it locally observes the 3-QC rule, and finality is inferred rather than announced.</p>
         <p className="eyebrow">HotStuff • Genesis → Round 5</p>
         <h1>Genesis Round Explorer</h1>
         <p className="lede">
