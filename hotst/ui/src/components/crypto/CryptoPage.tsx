@@ -319,6 +319,64 @@ export function CryptoPage() {
         </ul>
       </div>
 
+      <div className="card">
+        <div className="card-heading">
+          <p className="label">HotStuff hash flow</p>
+          <p className="sub">Proposal → Vote → QC → Lock → Finality</p>
+        </div>
+        <div className="log-entries">
+          <div className="log-entry">
+            <div className="tag info">Proposal</div>
+            <div>
+              <p className="log-title">Leader proposes block hash h₁</p>
+              <p className="log-detail">
+                h₁ = H(parentHash ∥ tx). Only the hash and parent hash are needed to route the
+                proposal.
+              </p>
+            </div>
+          </div>
+          <div className="log-entry">
+            <div className="tag vote">Vote</div>
+            <div>
+              <p className="log-title">Replicas sign (round, h₁)</p>
+              <p className="log-detail">Votes can be signatures over the hash; no payload download is required to approve.</p>
+            </div>
+          </div>
+          <div className="log-entry">
+            <div className="tag round">QC</div>
+            <div>
+              <p className="log-title">QC(h₁) = aggregate signatures</p>
+              <p className="log-detail">A threshold of votes forms a QC that certifies h₁ and its parent hash chain.</p>
+            </div>
+          </div>
+          <div className="log-entry">
+            <div className="tag warn">Lock</div>
+            <div>
+              <p className="log-title">Lock on h₁ after QC(h₁)</p>
+              <p className="log-detail">
+                New proposals must extend h₁ (or higher) by including its hash as parent; conflicting
+                hashes are rejected.
+              </p>
+            </div>
+          </div>
+          <div className="log-entry">
+            <div className="tag success">Finality</div>
+            <div>
+              <p className="log-title">3-chain of hashes commits</p>
+              <p className="log-detail">
+                If h₂ extends h₁ with QC(h₁) and h₃ extends h₂ with QC(h₂), h₁ is finalized—still
+                without fetching full blocks.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p className="note">
+          Hash-only example: genesis h₀ → propose h₁ = H(h₀∥txA), collect QC(h₁) and lock h₁ →
+          propose h₂ = H(h₁∥txB) carrying QC(h₁) → QC(h₂) → h₃ = H(h₂∥txC) with QC(h₂) finalizes h₁.
+          All consensus messages can flow using hashes; payloads can be fetched lazily after finality.
+        </p>
+      </div>
+
       <div className="section-heading">
         <h2>HotStuff flow (shared simulator)</h2>
         <p className="sub">See how transactions land in blocks, get votes/QCs, and finalize.</p>

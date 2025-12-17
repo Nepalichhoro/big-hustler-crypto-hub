@@ -23,7 +23,7 @@ export function Hero({
 }: Props) {
   return (
     <header className="hero">
-      <div>
+      <div><p>In HotStuff, no single node adds blocks to the blockchain; every replica independently commits blocks when it locally observes the 3-QC rule, and finality is inferred rather than announced.</p>
         <p className="eyebrow">HotStuff • Genesis → Round 5</p>
         <h1>Genesis Round Explorer</h1>
         <p className="lede">
