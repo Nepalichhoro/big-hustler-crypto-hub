@@ -75,6 +75,8 @@ export function Hero({
             lockedRound <strong>{lockedRound}</strong>
           </span><span><i>locks protect safety during voting, not during proposing.</i></span>
           <span>Used by leaders. Attached to proposals as justifyQC. Answers: 👉 “What is the freshest globally safe block to extend?”</span>
+          <div>highQC is used by the leader in proposals.
+lockedQC / lockedRound is used by replicas to gate voting.</div>
           
         </div>
         <div className="timer-strip">
