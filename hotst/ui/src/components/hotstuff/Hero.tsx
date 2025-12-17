@@ -73,7 +73,8 @@ export function Hero({
           </span>
           <span className="chip">
             lockedRound <strong>{lockedRound}</strong>
-          </span>
+          </span><span><i>locks protect safety during voting, not during proposing.</i></span>
+          
         </div>
         <div className="timer-strip">
           <div>
